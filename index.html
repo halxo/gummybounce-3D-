@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gummy Bounce 3D — Squish, Jiggle &amp; Launch 3D Gummy Bears</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="module">
+    if (!Object.hasOwn(HTMLElement.prototype, 'popover')) {
+      import('https://unpkg.com/@oddbird/popover-polyfill@latest/dist/popover.min.js');
+    }
+    if (!('commandForElement' in HTMLButtonElement.prototype)) {
+      import('https://esm.run/invokers-polyfill');
+    }
+  </script>
+  <script defer src="audio.js"></script>
+  <script defer src="mesh3d.js"></script>
+  <script defer src="physics3d.js"></script>
+  <script defer src="renderer3d.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="top-bar">
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true">🧸</span>
+      <div class="brand-text">
+        <h1>Gummy Bounce 3D</h1>
+        <p class="subtitle">8 3D jelly tools, arena gadgets &amp; soft-body physics</p>
+      </div>
+    </div>
+
+    <div class="score-badge" aria-label="Ring score and stolen bears">
+      <span aria-hidden="true">🎯</span>
+      <span>Score: <strong id="hoop-score">0</strong></span>
+      <span id="combo-pill" class="combo-pill" hidden>x1</span>
+      <span class="badge-sep" aria-hidden="true">·</span>
+      <span id="stolen-badge-wrap" title="Bears stolen (60s Normal, 10s Hard, 4–7s Hardcore)"><span id="thief-badge-dot" aria-hidden="true">🟢</span> Stolen: <strong id="stolen-count">0</strong></span>
+    </div>
+
+    <div class="toolbar" id="main-toolbar" role="toolbar" focusgroup="toolbar wrap" aria-label="3D Gummy bear tools and arena actions" aria-controls="gummy-canvas">
+      <div class="tool-group" role="group" aria-label="3D Interaction Tools">
+        <button type="button" class="tool-btn" data-mode="grab" aria-pressed="true" title="Grab, stretch &amp; throw 3D limbs (Key 1)">
+          <span aria-hidden="true">✋</span> Grab
+        </button>
+        <button type="button" class="tool-btn" data-mode="slingshot" aria-pressed="false" title="3D Slingshot catapult with arc preview (Key 2)">
+          <span aria-hidden="true">🏹</span> Slingshot
+        </button>
+        <button type="button" class="tool-btn" data-mode="wave" aria-pressed="false" title="3D Bass-drop jiggle shockwaves (Key 3)">
+          <span aria-hidden="true">〰️</span> Jiggle
+        </button>
+        <button type="button" class="tool-btn" data-mode="vortex" aria-pressed="false" title="3D Cotton-candy tornado funnel (Key 4)">
+          <span aria-hidden="true">🌪️</span> Vortex
+        </button>
+        <button type="button" class="tool-btn" data-mode="gatling" aria-pressed="false" title="Rapid-fire 3D gummy blaster (Key 5)">
+          <span aria-hidden="true">🔫</span> Blaster
+        </button>
+        <button type="button" class="tool-btn" data-mode="puff" aria-pressed="false" title="Puff inflate ray — over-inflate to pop into 3 mini bears! Alt to shrink (Key 6)">
+          <span aria-hidden="true">🎈</span> Puff Ray
+        </button>
+        <button type="button" class="tool-btn" data-mode="cryo" aria-pressed="false" title="Cryo freeze into icy candy &amp; click to shatter (Key 7)">
+          <span aria-hidden="true">❄️</span> Cryo
+        </button>
+        <button type="button" class="tool-btn" data-mode="magnet" aria-pressed="false" title="3D Magnet orb — clump bears &amp; release for Supernova blast! (Key 8)">
+          <span aria-hidden="true">🧲</span> Magnet
+        </button>
+      </div>
+
+      <span class="toolbar-sep" role="separator" aria-orientation="vertical"></span>
+
+      <div class="action-group" role="group" aria-label="Quick Actions and Settings">
+        <button type="button" id="btn-spawn" class="action-btn primary" title="Drop a new 3D gummy bear (Key N)">
+          <span aria-hidden="true">＋</span> Drop
+        </button>
+        <button type="button" id="btn-jiggle-all" class="action-btn jelly" title="Jiggle every 3D bear at once (Space or Key J)">
+          <span aria-hidden="true">🍮</span> Jiggle All
+        </button>
+        <button type="button" id="btn-launch-random" class="action-btn launch" title="Launch a bear toward the 3D hoops (Key L)">
+          <span aria-hidden="true">🚀</span> Cannon
+        </button>
+        <button type="button" id="btn-slowmo" class="action-btn" aria-pressed="false" title="Bullet-time 0.28x slow motion (Key T)">
+          <span aria-hidden="true">⏱️</span> Slow-Mo
+        </button>
+        <button type="button" id="btn-hard-mode" class="action-btn hard-mode-btn" aria-pressed="false" title="Hard Mode: Fast Red Man steals a bear every 10s! (Key H)">
+          <span aria-hidden="true">🔥</span> Hard Mode
+        </button>
+        <button type="button" id="btn-hardcore-mode" class="action-btn hardcore-mode-btn" aria-pressed="false" title="Hardcore Mode: Red Man spawns every 4–7s — click him to shoo him away! (Key K)">
+          <span aria-hidden="true">💀</span> Hardcore
+        </button>
+        <button type="button" id="btn-traitor-mode" class="action-btn traitor-mode-btn" aria-pressed="false" title="Traitor Mode: Spot the secret cannibal bear &amp; call the Purple Man! (Key M)">
+          <span aria-hidden="true">🕵️</span> Traitor Mode
+        </button>
+        <button type="button" class="action-btn" commandfor="arena-popover" command="toggle-popover" title="Toggle 3D trampoline, sweeper, hoops, neon mode &amp; sugar coat">
+          <span aria-hidden="true">🎪</span> Arena
+        </button>
+        <button type="button" class="action-btn" commandfor="jelly-lab-popover" command="toggle-popover" title="Tune 3D squishiness, bounce, gravity &amp; size">
+          <span aria-hidden="true">⚙️</span> Lab
+        </button>
+        <button type="button" id="btn-cam-reset" class="icon-btn" aria-label="Reset 3D camera view" title="Reset 3D camera view (Key R)">
+          <span aria-hidden="true">🎥</span>
+        </button>
+        <button type="button" id="btn-sound" class="icon-btn" aria-label="Sound effects" aria-pressed="true" title="Toggle sound effects">
+          <span id="sound-icon" aria-hidden="true">🔊</span>
+        </button>
+        <button type="button" class="icon-btn" commandfor="help-popover" command="toggle-popover" aria-label="Controls and shortcuts" title="Controls and shortcuts">
+          <span aria-hidden="true">?</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="stage-wrap">
+    <canvas id="gummy-canvas" aria-label="3D interactive gummy bear physics arena. Use the 8 tools to grab, slingshot, jiggle, tornado-spin, rapid-fire, inflate, cryo-freeze, or magnet-launch 3D gummy bears. Right-drag or Alt-drag to orbit the 3D camera, scroll to zoom."></canvas>
+
+    <aside class="flavor-dock" aria-label="3D Gummy bear flavors">
+      <span class="dock-label">Flavor:</span>
+      <div class="flavor-list" role="group" aria-label="Choose flavor to drop">
+        <button type="button" class="flavor-chip" data-flavor="random" aria-pressed="true">
+          <span class="swatch swatch-mix" aria-hidden="true"></span> Mix
+        </button>
+        <button type="button" class="flavor-chip" data-flavor="cherry" aria-pressed="false">
+          <span class="swatch swatch-cherry" aria-hidden="true"></span> Cherry
+        </button>
+        <button type="button" class="flavor-chip" data-flavor="pineapple" aria-pressed="false">
+          <span class="swatch swatch-pineapple" aria-hidden="true"></span> Pineapple
+        </button>
+        <button type="button" class="flavor-chip" data-flavor="apple" aria-pressed="false">
+          <span class="swatch swatch-apple" aria-hidden="true"></span> Apple
+        </button>
+        <button type="button" class="flavor-chip" data-flavor="orange" aria-pressed="false">
+          <span class="swatch swatch-orange" aria-hidden="true"></span> Orange
+        </button>
+        <button type="button" class="flavor-chip" data-flavor="raspberry" aria-pressed="false">
+          <span class="swatch swatch-raspberry" aria-hidden="true"></span> Blue Rasp
+        </button>
+        <button type="button" class="flavor-chip" data-flavor="grape" aria-pressed="false">
+          <span class="swatch swatch-grape" aria-hidden="true"></span> Grape
+        </button>
+        <button type="button" class="flavor-chip" data-flavor="watermelon" aria-pressed="false">
+          <span class="swatch swatch-watermelon" aria-hidden="true"></span> Sour Melon
+        </button>
+        <button type="button" class="flavor-chip" data-flavor="gold" aria-pressed="false">
+          <span class="swatch swatch-gold" aria-hidden="true"></span> 24K Gold
+        </button>
+      </div>
+    </aside>
+
+    <div class="camera-hud" aria-label="3D Camera quick controls">
+      <button type="button" id="cam-left" class="cam-pill-btn" aria-label="Orbit camera left" title="Orbit left">⟲</button>
+      <button type="button" id="cam-top" class="cam-pill-btn" aria-label="Top-down angle" title="Top angle">Top</button>
+      <button type="button" id="cam-front" class="cam-pill-btn" aria-label="Front studio angle" title="Front angle">Front</button>
+      <button type="button" id="cam-right" class="cam-pill-btn" aria-label="Orbit camera right" title="Orbit right">⟳</button>
+    </div>
+
+    <div id="traitor-hud" class="traitor-hud" role="region" aria-label="Traitor Mode Detective Bar" hidden>
+      <span class="traitor-chip"><span aria-hidden="true">🕵️</span> Traitor Mode</span>
+      <span id="traitor-suspect-text" class="traitor-suspect-text">Click a bear to mark suspect</span>
+      <button type="button" id="btn-call-purple" class="purple-call-btn" title="Call the Purple Man to collect your suspected gummy bear (Key P)">
+        <span aria-hidden="true">🟣</span> Call Purple Man
+      </button>
+    </div>
+
+    <div id="hardcore-hud" class="hardcore-hud" role="region" aria-label="Hardcore Mode Defense Status" hidden>
+      <span class="hardcore-chip"><span aria-hidden="true">💀</span> Hardcore (4–7s)</span>
+      <span class="hardcore-status-text">Click the Red Man to shoo him away!</span>
+      <span class="badge-sep" aria-hidden="true">·</span>
+      <span>Repelled: <strong id="repelled-count">0</strong></span>
+      <span class="badge-sep" aria-hidden="true">·</span>
+      <span>Yellow Gifts: <strong id="yellow-gift-count">0</strong></span>
+    </div>
+
+    <p class="hint-pill" id="mode-hint">
+      <strong>3D Grab &amp; Throw:</strong> Drag any ear, paw, or belly in 3D to stretch &amp; toss! <strong>Right-drag</strong> (or drag empty floor with <kbd>Alt</kbd>) to orbit 360°, <strong>Scroll</strong> to zoom.
+    </p>
+  </main>
+
+  <div id="arena-popover" class="candy-popover" popover="auto">
+    <h2>3D Arena Gadgets &amp; Style</h2>
+    <div class="toggle-grid">
+      <button type="button" id="tog-trampoline" class="gadget-toggle" aria-pressed="true">
+        <span aria-hidden="true">🟣</span> Jelly Trampoline
+      </button>
+      <button type="button" id="tog-sweeper" class="gadget-toggle" aria-pressed="false">
+        <span aria-hidden="true">🎡</span> Candy Sweeper Bar
+      </button>
+      <button type="button" id="tog-hoops" class="gadget-toggle" aria-pressed="true">
+        <span aria-hidden="true">🎯</span> 3D Golden Hoops
+      </button>
+      <button type="button" id="tog-sugar" class="gadget-toggle" aria-pressed="false">
+        <span aria-hidden="true">✨</span> Sour Sugar Coat
+      </button>
+      <button type="button" id="tog-neon" class="gadget-toggle" aria-pressed="false">
+        <span aria-hidden="true">🌙</span> Neon Rave Mode
+      </button>
+      <button type="button" id="tog-hard-mode" class="gadget-toggle hard-toggle" aria-pressed="false">
+        <span aria-hidden="true">🔥</span> Hard Mode (10s Red)
+      </button>
+      <button type="button" id="tog-hardcore-mode" class="gadget-toggle hardcore-toggle" aria-pressed="false">
+        <span aria-hidden="true">💀</span> Hardcore (4–7s Click!)
+      </button>
+      <button type="button" id="tog-traitor-mode" class="gadget-toggle traitor-toggle" aria-pressed="false">
+        <span aria-hidden="true">🕵️</span> Traitor Mode (60s)
+      </button>
+      <button type="button" id="btn-party-rain" class="gadget-action">
+        <span aria-hidden="true">🎉</span> Gummy Rain (x8)
+      </button>
+      <button type="button" id="btn-summon-green" class="gadget-action green-action">
+        <span aria-hidden="true">🏃‍♂️</span> Summon Bear Thief
+      </button>
+    </div>
+  </div>
+
+  <div id="jelly-lab-popover" class="candy-popover" popover="auto">
+    <h2>3D Jelly Lab</h2>
+    <div class="control-row">
+      <label for="slider-jiggle">3D Wobble &amp; Squishiness <span id="val-jiggle">Juicy</span></label>
+      <input type="range" id="slider-jiggle" min="15" max="95" value="65">
+    </div>
+    <div class="control-row">
+      <label for="slider-bounce">3D Wall &amp; Floor Bounce <span id="val-bounce">78%</span></label>
+      <input type="range" id="slider-bounce" min="20" max="98" value="78">
+    </div>
+    <div class="control-row">
+      <label for="slider-gravity">Gravity <span id="val-gravity">1.0x</span></label>
+      <input type="range" id="slider-gravity" min="0" max="180" value="100">
+    </div>
+    <div class="control-row">
+      <label for="slider-size">Bear Scale <span id="val-size">1.00x</span></label>
+      <input type="range" id="slider-size" min="65" max="155" value="100">
+    </div>
+    <div class="popover-actions">
+      <button type="button" id="btn-zero-g" class="secondary-btn">Toggle Zero-G</button>
+      <button type="button" id="btn-reset" class="danger-btn">Reset Pile</button>
+    </div>
+  </div>
+
+  <div id="help-popover" class="candy-popover" popover="auto">
+    <h2>8 3D Tools &amp; Camera Controls</h2>
+    <ul class="help-list">
+      <li><kbd>1</kbd> <strong>Grab:</strong> Pull ears, paws, snout, or feet in 3D &amp; flick to throw!</li>
+      <li><kbd>2</kbd> <strong>Slingshot:</strong> Pull back in 3D to aim the trajectory beads &amp; launch!</li>
+      <li><kbd>3</kbd> <strong>Jiggle Wand:</strong> Emit 3D spherical jelly shockwaves.</li>
+      <li><kbd>4</kbd> <strong>Vortex:</strong> Summon a 3D cotton-candy tornado funnel!</li>
+      <li><kbd>5</kbd> <strong>Blaster:</strong> Hold to rapid-fire 3D gummy bears at your cursor!</li>
+      <li><kbd>6</kbd> <strong>Puff Ray:</strong> Inflate giant chonk bears until they POP into 3 mini bears! (<kbd>Alt</kbd> to shrink).</li>
+      <li><kbd>7</kbd> <strong>Cryo Ray:</strong> Freeze bears into sliding ice-candy; click or slam to shatter!</li>
+      <li><kbd>8</kbd> <strong>Magnet:</strong> Clump bears into a floating 3D ball &amp; release for a Supernova blast!</li>
+      <li><strong>3D Camera &amp; Modes:</strong> <strong>Right-drag</strong>, <strong>Middle-drag</strong>, or <kbd>Alt</kbd>+drag to orbit 360°; <strong>Scroll</strong> to zoom; <kbd>R</kbd> resets view; <kbd>T</kbd> toggles Slow-Mo; <kbd>H</kbd> toggles <strong>Hard Mode</strong> (fast Red Man every 10s); <kbd>K</kbd> toggles <strong>Hardcore Mode</strong> (Red Man spawns every 4–7s — click him to make him flee, with a 10% chance he becomes the <strong>Yellow Man</strong> and gifts a bear before the <strong>Obtuse Man</strong> beats him up and runs away!); <kbd>M</kbd> toggles <strong>Traitor Mode</strong> (press <kbd>P</kbd> to <strong>Call Purple Man</strong>); and every <strong>2 minutes</strong>, the <strong>Golden Man</strong> descends from the sky with <strong>2 exclusive White gummy bears</strong>!</li>
+    </ul>
+  </div>
+
+  <dialog id="victory-dialog" class="victory-dialog" closedby="any" aria-labelledby="victory-title">
+    <div class="victory-crown" aria-hidden="true">🏆🟣🧸</div>
+    <h2 id="victory-title">You Caught the Traitor!</h2>
+    <p id="victory-summary" class="victory-summary">
+      The Purple Man hauled away the sneaky Traitor gummy bear and saved your remaining candy crew!
+    </p>
+    <form method="dialog" class="victory-actions">
+      <button type="submit" value="replay" class="victory-btn primary" autofocus>Play Traitor Mode Again</button>
+      <button type="submit" value="freeplay" class="victory-btn secondary">Return to Free Play</button>
+    </form>
+  </dialog>
+
+  <div id="toast-region" class="toast-region" role="region" aria-label="Notifications"></div>
+
+  <p class="visually-hidden">Screen reader announcements</p>
+  <div id="toast-live" class="visually-hidden" aria-live="assertive"></div>
+  <p id="sr-announcer" class="visually-hidden" role="status" aria-live="polite"></p>
+</body>
+</html>
