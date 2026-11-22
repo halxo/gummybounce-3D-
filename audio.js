@@ -807,6 +807,60 @@
       osc.start(now);
       osc.stop(now + 0.07);
     }
+
+    playYamBoing() {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(92, now);
+      osc.frequency.exponentialRampToValueAtTime(215, now + 0.09);
+      osc.frequency.exponentialRampToValueAtTime(118, now + 0.34);
+
+      lfo.type = 'sine';
+      lfo.frequency.setValueAtTime(18, now);
+      lfoGain.gain.setValueAtTime(28, now);
+      lfoGain.gain.exponentialRampToValueAtTime(2, now + 0.32);
+
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc.frequency);
+
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.24, now + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.36);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      lfo.start(now);
+      osc.stop(now + 0.38);
+      lfo.stop(now + 0.38);
+    }
+
+    playJellySplat(intensity = 0.7) {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const c = Math.max(0.2, Math.min(1, intensity));
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(190 + c * 90, now);
+      osc.frequency.exponentialRampToValueAtTime(68, now + 0.08);
+      osc.frequency.exponentialRampToValueAtTime(145, now + 0.14);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.16 * c, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.17);
+    }
   }
 
   window.GummyApp = window.GummyApp || {};

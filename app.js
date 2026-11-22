@@ -514,6 +514,48 @@
     syncModeHuds();
     showCornerToast(`💀 Survival Over! Reached Wave ${stats.wave} (${stats.repelled} repelled)`, 'red');
   };
+  world.onYamBoing = () => {
+    audio.playYamBoing();
+  };
+  world.onJellySplat = (intensity) => {
+    audio.playJellySplat(intensity);
+  };
+  world.onYamCrit = (dmg) => {
+    audio.playYamBoing();
+    showCornerToast(`🍠💥 HEAVY YAM SLAM! 2x Crit (${dmg} dmg)!`, 'gold');
+  };
+
+  const JELLY_PRESETS = {
+    slime: { jiggle: 94, bounce: 48, gravity: 85, label: 'Ultra-Slime' },
+    superball: { jiggle: 22, bounce: 97, gravity: 105, label: 'Superball Rubber' },
+    jello: { jiggle: 86, bounce: 82, gravity: 100, label: 'Jell-O Mold' },
+    lavalamp: { jiggle: 82, bounce: 88, gravity: 0, label: 'Zero-G Lava Lamp' }
+  };
+
+  document.querySelectorAll('.preset-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const p = JELLY_PRESETS[btn.dataset.preset];
+      if (!p) return;
+      const sJ = document.getElementById('slider-jiggle');
+      const sB = document.getElementById('slider-bounce');
+      const sG = document.getElementById('slider-gravity');
+      if (sJ) { sJ.value = String(p.jiggle); sJ.dispatchEvent(new Event('input')); }
+      if (sB) { sB.value = String(p.bounce); sB.dispatchEvent(new Event('input')); }
+      if (sG) { sG.value = String(p.gravity); sG.dispatchEvent(new Event('input')); }
+      world.jiggleAll();
+      audio.playBoop(1.22);
+      showCornerToast(`🍮 Jelly Preset: ${p.label}!`, 'purple');
+    });
+  });
+
+  const btnYamQuake = document.getElementById('btn-yam-quake');
+  if (btnYamQuake) {
+    btnYamQuake.addEventListener('click', () => {
+      world.yamQuake();
+      audio.playYamBoing();
+      showCornerToast('🍠 YAM QUAKE! Every cheek is wobbling!', 'gold');
+    });
+  }
 
   function setMode(mode) {
     currentMode = mode;

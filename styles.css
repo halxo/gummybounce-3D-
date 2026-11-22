@@ -1237,4 +1237,27 @@
     font-size: 0.68rem;
     opacity: 0.78;
   }
+
+  /* Jelly Lab Physics Presets */
+  .preset-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.45rem;
+    margin: 0.65rem 0 0.75rem;
+  }
+  .preset-btn {
+    padding: 0.45rem 0.6rem;
+    border-radius: 10px;
+    border: 1.5px solid rgb(168 85 247 / 0.3);
+    background: rgb(255 255 255 / 0.88);
+    color: #2e1065;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 120ms ease, background 120ms ease;
+  }
+  .preset-btn:hover {
+    background: rgb(243 232 255 / 0.96);
+    transform: translateY(-1px);
+  }
 }

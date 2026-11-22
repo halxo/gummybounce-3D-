@@ -364,6 +364,7 @@
   uniform float uHeat;
   uniform float uIsGhost;
   uniform float uMegaLevel;
+  uniform float uTime;
   uniform int uShadowPass;
 
   out vec4 fragColor;
@@ -429,10 +430,11 @@
     float wrapDiff = clamp((dot(N, L1) + 0.55) / 1.55, 0.0, 1.0);
     float fillDiff = clamp((dot(N, L2) + 0.4) / 1.4, 0.0, 1.0) * 0.35;
 
-    // Light scattering through the back & belly core of the gummy bear
+    // Light scattering through the back & belly core of the gummy bear + animated liquid caustics
     float backScatter = pow(clamp(dot(V, -(L1 + N * 0.42)), 0.0, 1.0), 2.4);
     float thickness = 1.0 - clamp(length(vLocalPos.xz) * 1.15, 0.0, 0.85);
-    float innerGlow = (0.35 + 0.65 * thickness) * (0.45 + 0.55 * max(dot(N, V), 0.0));
+    float caustic = 0.5 + 0.5 * sin(vLocalPos.x * 11.0 + uTime * 2.4) * cos(vLocalPos.y * 10.0 - uTime * 1.9 + vLocalPos.z * 7.0);
+    float innerGlow = (0.38 + 0.62 * thickness) * (0.48 + 0.52 * max(dot(N, V), 0.0)) + caustic * 0.16 * thickness;
 
     vec3 shadowTint = uIsWhite > 0.5 ? vec3(0.75, 0.78, 0.89) : baseCol * 0.62;
     vec3 jellyColor = mix(shadowTint, baseCol, clamp(wrapDiff + fillDiff, 0.0, 1.0));
@@ -1900,11 +1902,23 @@
         this.drawGoldenMan(w.goldenMan);
       }
 
+      // 1b. Glossy Fading Candy-Jelly Floor Splash Puddles
+      if (w.puddles && w.puddles.length > 0) {
+        gl.useProgram(this.stageProg);
+        gl.depthMask(false);
+        for (const pd of w.puddles) {
+          mat4FromTRS(this.modelMat, pd.x, 0.025, pd.z, 0, 0, 0, pd.r, 0.03, pd.r);
+          this.drawMesh(this.cylVAO, this.modelMat, 3, pd.rgb[0], pd.rgb[1], pd.rgb[2], pd.alpha * 0.72);
+        }
+        gl.depthMask(true);
+      }
+
       // 2. Planar 3D Gummy Bear Shadows on Floor
       gl.useProgram(this.bearProg);
       gl.uniformMatrix4fv(this.bearLocs.uViewProj, false, this.viewProjMat);
       gl.uniform3fv(this.bearLocs.uRestNodes, this.restNodesFlat);
       gl.uniform1f(this.bearLocs.uNeonMode, this.neonMode ? 1.0 : 0.0);
+      gl.uniform1f(this.bearLocs.uTime, timeSec);
       gl.bindVertexArray(this.bearVAO);
 
       gl.disable(gl.CULL_FACE);
@@ -1918,6 +1932,7 @@
         gl.uniform1f(this.bearLocs.uCheeky, b.cheekyAmount || 0);
         gl.uniform1f(this.bearLocs.uIsGhost, b.flavor.isGhost ? 1.0 : 0.0);
         gl.uniform1f(this.bearLocs.uYamBoost, b.yamBoost || 0);
+        gl.uniform1f(this.bearLocs.uJellyRipple, b.jellyRipple || 0);
         gl.drawElements(gl.TRIANGLES, this.bearIndexCount, gl.UNSIGNED_INT, 0);
       }
       gl.depthMask(true);
@@ -1949,6 +1964,7 @@
         gl.uniform1f(this.bearLocs.uIsGhost, b.flavor.isGhost ? 1.0 : 0.0);
         gl.uniform1f(this.bearLocs.uMegaLevel, b.megaLevel || 0);
         gl.uniform1f(this.bearLocs.uYamBoost, b.yamBoost || 0);
+        gl.uniform1f(this.bearLocs.uJellyRipple, b.jellyRipple || 0);
         gl.drawElements(gl.TRIANGLES, this.bearIndexCount, gl.UNSIGNED_INT, 0);
       }
 

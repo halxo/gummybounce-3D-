@@ -183,7 +183,11 @@
       this.portalCooldown = 0;
       this.megaLevel = 0;
       this.electricCooldown = 0;
-      this.yamBoost = 0; // 0..2.8 Yams Ray butt inflation
+      this.yamBoost = 0; // 0..3.2 Yams Ray butt inflation
+      this.yamCharged = false; // Super Yam Charge for rocket bounce after release
+      this.yamPinned = false; // True while targeted by Yams Ray so bear stays still
+      this.yamBounceCooldown = 0;
+      this.jellyRipple = 0; // 0..1 squash & stretch jelly ripple on hard impacts
 
       this.cx = x;
       this.cy = y;
@@ -591,8 +595,9 @@
       };
       this.nextSurvivalThiefId = 1;
 
-      // Cosmetics
+      // Cosmetics & Floor Jelly Puddles
       this.selectedHat = 'none';
+      this.puddles = []; // { x, z, r, maxR, rgb, alpha }
 
       // Callbacks
       this.onSquish = null;
@@ -621,6 +626,31 @@
       this.onSurvivalWave = null;
       this.onSurvivalEnd = null;
       this.onSurvivalRepel = null;
+      this.onYamBoing = null;
+      this.onJellySplat = null;
+      this.onYamCrit = null;
+    }
+
+    yamQuake() {
+      let count = 0;
+      for (const b of this.bears) {
+        if (b.isStolen || b.isBlessedHold) continue;
+        count++;
+        b.jellyRipple = 1.0;
+        b.exciteJiggle(8.5);
+        if (b.nodes[16] && b.nodes[17]) {
+          const boost = 6.5 + (b.yamBoost || 0) * 3.2;
+          b.nodes[16].vx -= boost * 0.7;
+          b.nodes[16].vy += boost;
+          b.nodes[17].vx += boost * 0.7;
+          b.nodes[17].vy += boost;
+        }
+        if ((b.yamBoost || 0) >= 1.2) {
+          this.shockwaves.push({ x: b.cx, y: 0.25, z: b.cz, r: 0.4, maxR: 4.6, alpha: 0.85 });
+          this.spawnParticles(b.cx, b.cy, b.cz, [0.98, 0.56, 0.16], 10, 1.1);
+        }
+      }
+      return count;
     }
 
     placePortal(x, y, z) {
@@ -2420,18 +2450,29 @@
             if (b.isBlessedHold) continue;
             const d = Math.hypot(b.cx - fld.x, b.cy - (fld.y + 1.1), b.cz - fld.z);
             if (d < 3.6 + b.boundRadius) {
+              // Pin bear completely still so Yams Ray NEVER makes them move!
+              b.yamPinned = true;
+              for (const n of b.nodes) {
+                n.vx = 0;
+                n.vy = 0;
+                n.vz = 0;
+              }
+              const prevYam = b.yamBoost || 0;
               const delta = (fld.shrink ? -1.8 : 1.8) * rawDt;
-              b.yamBoost = Math.max(0, Math.min(2.8, (b.yamBoost || 0) + delta));
-              // Scale butt cheek soft-body node radii so the bigger butt bounces & jiggles!
+              b.yamBoost = Math.max(0, Math.min(3.2, prevYam + delta));
               if (b.nodes[16] && b.nodes[17]) {
                 const cheekR = (0.26 + b.yamBoost * 0.14) * b.scale;
                 b.nodes[16].r = cheekR;
                 b.nodes[17].r = cheekR;
-                b.nodes[16].vy += (Math.random() - 0.5) * 1.8;
-                b.nodes[17].vy += (Math.random() - 0.5) * 1.8;
               }
-              b.exciteJiggle(2.2);
-              if (Math.random() < 0.4) {
+              if (!fld.shrink && prevYam < 3.0 && b.yamBoost >= 3.0 && !b.yamCharged) {
+                b.yamCharged = true;
+                this.spawnParticles(b.cx, b.cy, b.cz, [1.0, 0.72, 0.14], 22, 1.3);
+              }
+              if (fld.shrink && b.yamBoost < 2.5) {
+                b.yamCharged = false;
+              }
+              if (Math.random() < 0.35) {
                 this.spawnParticles(b.cx, b.cy, b.cz, [0.95, 0.52, 0.16], 1, 0.65);
               }
             }
@@ -2440,8 +2481,13 @@
       }
 
       for (const b of this.bears) {
+        if (!this.activeField || this.activeField.type !== 'yams') {
+          b.yamPinned = false;
+        }
         if (b.portalCooldown > 0) b.portalCooldown = Math.max(0, b.portalCooldown - rawDt);
         if (b.electricCooldown > 0) b.electricCooldown = Math.max(0, b.electricCooldown - rawDt);
+        if (b.yamBounceCooldown > 0) b.yamBounceCooldown = Math.max(0, b.yamBounceCooldown - rawDt);
+        if (b.jellyRipple > 0) b.jellyRipple = Math.max(0, b.jellyRipple - rawDt * 2.2);
         if (!this.activeField || this.activeField.type !== 'heat') {
           if (b.heat > 0) b.heat = Math.max(0, b.heat - rawDt * 0.25);
         }
@@ -2460,6 +2506,14 @@
         // 1. Internal 3D Soft-Body Forces + Field Forces
         for (const b of this.bears) {
           b.updateShapeFrame();
+
+          if (b.yamPinned) {
+            for (const n of b.nodes) {
+              n.fx = 0; n.fy = 0; n.fz = 0;
+              n.vx = 0; n.vy = 0; n.vz = 0;
+            }
+            continue;
+          }
 
           const freezeBoost = 1 + b.frozen * 4.5;
           const kShape = baseKShape * freezeBoost;
@@ -2483,7 +2537,8 @@
             n.fz += (gz - n.z) * kShape * n.m;
           }
 
-          // 3D Structural & Cross Springs
+          // 3D Structural & Cross Springs (extra loose on butt cheeks when high-yam!)
+          const looseCheeks = (b.yamBoost || 0) >= 1.2;
           for (const s of b.springs) {
             const a = b.nodes[s.i];
             const c = b.nodes[s.j];
@@ -2491,7 +2546,8 @@
             const dy = c.y - a.y;
             const dz = c.z - a.z;
             const len = Math.hypot(dx, dy, dz) || 1e-4;
-            const f = ((len - s.restLen) / len) * kSpring * s.mult;
+            const yamSoft = (looseCheeks && (s.i >= 16 || s.j >= 16)) ? 0.45 : 1.0;
+            const f = ((len - s.restLen) / len) * kSpring * s.mult * yamSoft;
             const fx = dx * f;
             const fy = dy * f;
             const fz = dz * f;
@@ -3055,6 +3111,58 @@
             if (this.onElectricZap) this.onElectricZap(b);
           }
 
+          // Squash & Stretch Impact Deformation + Glossy Floor Jelly Splash Puddles
+          if (!b.yamPinned && bearHardImpact > 7.2 && b.jellyRipple < 0.35) {
+            b.jellyRipple = Math.min(1.0, bearHardImpact / 14.0);
+            if (b.cy < 2.2 * b.scale && this.puddles.length < 24) {
+              this.puddles.push({
+                x: b.cx,
+                z: b.cz,
+                r: 0.35 * b.scale,
+                maxR: (0.95 + Math.min(0.8, bearHardImpact * 0.05)) * b.scale,
+                rgb: b.flavor.rgb,
+                alpha: 0.62
+              });
+            }
+            if (this.onJellySplat) this.onJellySplat(Math.min(1, bearHardImpact / 18));
+          }
+
+          // Cheek-Bounce Physics & Over-Yam Rocket Boost (only when not pinned by Yams Ray!)
+          if (!b.yamPinned && !b.isHeld && (b.yamBoost || 0) >= 1.2 && bearHardImpact > 3.6 && b.yamBounceCooldown <= 0) {
+            b.yamBounceCooldown = 0.55;
+            const bounceVy = Math.max(12.8, bearHardImpact * (1.28 + b.yamBoost * 0.14));
+            const fwdX = b.rotMat[6];
+            const fwdZ = b.rotMat[8];
+            const rocketBoost = b.yamCharged ? 14.5 : 0;
+            if (b.yamCharged) {
+              b.yamCharged = false;
+              this.spawnParticles(b.cx, b.cy, b.cz, [1.0, 0.72, 0.14], 24, 1.5);
+            }
+            for (const n of b.nodes) {
+              n.vy = Math.max(n.vy, bounceVy);
+              if (rocketBoost > 0) {
+                n.vx += fwdX * rocketBoost;
+                n.vz += fwdZ * rocketBoost;
+              }
+            }
+            b.jellyRipple = 1.0;
+            b.exciteJiggle(8.5);
+            this.shockwaves.push({ x: b.cx, y: 0.22, z: b.cz, r: 0.45, maxR: 4.5 + b.yamBoost * 0.6, alpha: 0.85 });
+            for (const other of this.bears) {
+              if (other === b || other.isStolen || other.yamPinned) continue;
+              const dx = other.cx - b.cx;
+              const dz = other.cz - b.cz;
+              const d = Math.hypot(dx, dz);
+              if (d < 4.5) {
+                const ux = d > 0.05 ? dx / d : 1;
+                const uz = d > 0.05 ? dz / d : 0;
+                other.applyImpulse(ux * 5.2, 5.2, uz * 5.2, 3, 3, 3);
+                other.exciteJiggle(6.0);
+              }
+            }
+            if (this.onYamBoing) this.onYamBoing(b);
+          }
+
           if (hitTrampoline) {
             tramp.pulse = 1.0;
             b.exciteJiggle(6.5);
@@ -3164,6 +3272,13 @@
         w.r += (w.maxR - w.r) * Math.min(1, dt * 7.5);
         w.alpha -= rawDt * 1.9;
         if (w.alpha <= 0) this.shockwaves.splice(i, 1);
+      }
+
+      for (let i = this.puddles.length - 1; i >= 0; i--) {
+        const pd = this.puddles[i];
+        pd.r += (pd.maxR - pd.r) * Math.min(1, rawDt * 9.0);
+        pd.alpha -= rawDt * 0.18;
+        if (pd.alpha <= 0) this.puddles.splice(i, 1);
       }
     }
   }
