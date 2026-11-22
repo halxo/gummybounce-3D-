@@ -278,6 +278,7 @@
   uniform float uScale;
   uniform float uBellyBulge;
   uniform float uCheeky;
+  uniform float uYamBoost;
   uniform int uShadowPass;
 
   out vec3 vWorldPos;
@@ -296,6 +297,17 @@
       vec3 bulgeDir = normalize(vec3(pos.x * 0.68, (pos.y + 0.24) * 0.34 - 0.03, 1.0));
       pos += bulgeDir * (uBellyBulge * 0.22 * wBelly);
       norm = normalize(norm + bulgeDir * (uBellyBulge * 0.32 * wBelly));
+    }
+
+    // Yams Ray: Inflate both plump 3D butt cheeks on the back (-Z) while keeping cleft crisp
+    if (uYamBoost > 0.001 && aPart < 0.5) {
+      float side = pos.x >= 0.0 ? 1.0 : -1.0;
+      vec3 cheekCenter = vec3(side * 0.23, -0.42, -0.37);
+      vec3 dY = (pos - cheekCenter) / vec3(0.36, 0.34, 0.36);
+      float wYam = exp(-dot(dY, dY) * 1.35) * smoothstep(-0.04, -0.24, pos.z);
+      vec3 yamDir = normalize(vec3(side * 0.42 + (pos.x - cheekCenter.x) * 0.85, (pos.y - cheekCenter.y) * 0.65 - 0.06, -1.0));
+      pos += yamDir * (uYamBoost * 0.34 * wYam);
+      norm = normalize(norm + yamDir * (uYamBoost * 0.35 * wYam));
     }
 
     // Subtle Traitor Cue #2: Faint smug eye squint when cheeky
@@ -813,7 +825,8 @@
         uCheeky: gl.getUniformLocation(this.bearProg, 'uCheeky'),
         uHeat: gl.getUniformLocation(this.bearProg, 'uHeat'),
         uIsGhost: gl.getUniformLocation(this.bearProg, 'uIsGhost'),
-        uMegaLevel: gl.getUniformLocation(this.bearProg, 'uMegaLevel')
+        uMegaLevel: gl.getUniformLocation(this.bearProg, 'uMegaLevel'),
+        uYamBoost: gl.getUniformLocation(this.bearProg, 'uYamBoost')
       };
 
       this.restNodesFlat = new Float32Array(REST_NODES_3D.length * 3);
@@ -1904,6 +1917,7 @@
         gl.uniform1f(this.bearLocs.uBellyBulge, b.bellyBulge || 0);
         gl.uniform1f(this.bearLocs.uCheeky, b.cheekyAmount || 0);
         gl.uniform1f(this.bearLocs.uIsGhost, b.flavor.isGhost ? 1.0 : 0.0);
+        gl.uniform1f(this.bearLocs.uYamBoost, b.yamBoost || 0);
         gl.drawElements(gl.TRIANGLES, this.bearIndexCount, gl.UNSIGNED_INT, 0);
       }
       gl.depthMask(true);
@@ -1934,6 +1948,7 @@
         gl.uniform1f(this.bearLocs.uHeat, b.heat || 0);
         gl.uniform1f(this.bearLocs.uIsGhost, b.flavor.isGhost ? 1.0 : 0.0);
         gl.uniform1f(this.bearLocs.uMegaLevel, b.megaLevel || 0);
+        gl.uniform1f(this.bearLocs.uYamBoost, b.yamBoost || 0);
         gl.drawElements(gl.TRIANGLES, this.bearIndexCount, gl.UNSIGNED_INT, 0);
       }
 
@@ -2051,6 +2066,13 @@
           this.drawMesh(this.thinRingVAO, this.modelMat, 3, 1.0, 0.34, 0.06, 0.92);
           mat4AlignBeam(this.modelMat, fld.x, 0.12, fld.z, fld.x, 8.5, fld.z, 0.18 + Math.sin(timeSec * 24) * 0.04);
           this.drawMesh(this.cylVAO, this.modelMat, 4, 1.0, 0.45, 0.08, 0.45);
+        } else if (fld.type === 'yams') {
+          const r = 2.15 + Math.sin(timeSec * 12) * 0.25;
+          const col = fld.shrink ? [0.55, 0.35, 0.95] : [0.98, 0.48, 0.14];
+          mat4FromTRS(this.modelMat, fld.x, 0.18, fld.z, Math.PI * 0.5, timeSec * 3.0, 0, r, r, r);
+          this.drawMesh(this.thinRingVAO, this.modelMat, 3, col[0], col[1], col[2], 0.92);
+          mat4AlignBeam(this.modelMat, fld.x, 0.12, fld.z, fld.x, 7.5, fld.z, 0.20 + Math.sin(timeSec * 16) * 0.04);
+          this.drawMesh(this.cylVAO, this.modelMat, 4, 0.82, 0.32, 0.88, 0.38);
         }
       }
 

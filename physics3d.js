@@ -183,6 +183,7 @@
       this.portalCooldown = 0;
       this.megaLevel = 0;
       this.electricCooldown = 0;
+      this.yamBoost = 0; // 0..2.8 Yams Ray butt inflation
 
       this.cx = x;
       this.cy = y;
@@ -2411,6 +2412,27 @@
                 this.spawnParticles(b.cx, b.cy + 0.3, b.cz, [1.0, 0.36, 0.06], 16, 1.3);
                 this.shockwaves.push({ x: b.cx, y: b.cy, z: b.cz, r: 0.4, maxR: 4.5, alpha: 0.85 });
                 if (this.onBearPopcorn) this.onBearPopcorn(b);
+              }
+            }
+          }
+        } else if (fld.type === 'yams') {
+          for (const b of this.bears) {
+            if (b.isBlessedHold) continue;
+            const d = Math.hypot(b.cx - fld.x, b.cy - (fld.y + 1.1), b.cz - fld.z);
+            if (d < 3.6 + b.boundRadius) {
+              const delta = (fld.shrink ? -1.8 : 1.8) * rawDt;
+              b.yamBoost = Math.max(0, Math.min(2.8, (b.yamBoost || 0) + delta));
+              // Scale butt cheek soft-body node radii so the bigger butt bounces & jiggles!
+              if (b.nodes[16] && b.nodes[17]) {
+                const cheekR = (0.26 + b.yamBoost * 0.14) * b.scale;
+                b.nodes[16].r = cheekR;
+                b.nodes[17].r = cheekR;
+                b.nodes[16].vy += (Math.random() - 0.5) * 1.8;
+                b.nodes[17].vy += (Math.random() - 0.5) * 1.8;
+              }
+              b.exciteJiggle(2.2);
+              if (Math.random() < 0.4) {
+                this.spawnParticles(b.cx, b.cy, b.cz, [0.95, 0.52, 0.16], 1, 0.65);
               }
             }
           }

@@ -129,7 +129,8 @@
     magnet: '<strong>8 · 3D Magnet Orb:</strong> Hold to clump bears into a floating 3D Gummy Katamari ball, then release for a <strong>Supernova Launch</strong>!',
     fuse: '<strong>9 · Sticky Glue &amp; Fusion:</strong> Click near 2+ bears to fuse them into a Giant <strong>Mega-Bear</strong>, or click a lone bear to glue/unglue it on the nearest wall or ceiling!',
     portal: '<strong>0 · 3D Portal Gun:</strong> Click anywhere to place linked <strong>Cyan</strong> &amp; <strong>Orange</strong> 3D portals! Bears flying in warp out at boosted speed. (<kbd>Alt</kbd>+click to clear).',
-    heat: '<strong>- · Heat Laser:</strong> Hold to melt bears stretchy &amp; extra bouncy, thaw Cryo ice, and overheat them to <strong>POP like popcorn</strong>!'
+    heat: '<strong>- · Heat Laser:</strong> Hold to melt bears stretchy &amp; extra bouncy, thaw Cryo ice, and overheat them to <strong>POP like popcorn</strong>!',
+    yams: '<strong>= · 🍠 Yams Ray:</strong> Hold on any gummy bear to pump up their <strong>jiggly 3D butt cheeks</strong>! Hold <kbd>Shift</kbd> to deflate.'
   };
 
   function announce(msg) {
@@ -1183,7 +1184,7 @@
       return;
     }
 
-    if (effectiveMode === 'vortex' || effectiveMode === 'puff' || effectiveMode === 'cryo' || effectiveMode === 'magnet' || effectiveMode === 'heat') {
+    if (effectiveMode === 'vortex' || effectiveMode === 'puff' || effectiveMode === 'cryo' || effectiveMode === 'magnet' || effectiveMode === 'heat' || effectiveMode === 'yams') {
       interactionKind = 'field';
       const pt = hit ? [hit.bear.cx, 0, hit.bear.cz] : arenaPt;
       world.activeField = {
@@ -1193,7 +1194,7 @@
         z: pt[2],
         shrink: Boolean(event.shiftKey)
       };
-      audio.playBeamPulse(effectiveMode === 'heat' ? 'puff' : effectiveMode);
+      audio.playBeamPulse((effectiveMode === 'heat' || effectiveMode === 'yams') ? 'puff' : effectiveMode);
     }
   });
 
@@ -1618,7 +1619,7 @@
           audio.playGatlingPop();
         }
         if (interactionKind === 'field' && world.activeField) {
-          audio.playBeamPulse(world.activeField.type === 'heat' ? 'puff' : world.activeField.type);
+          audio.playBeamPulse((world.activeField.type === 'heat' || world.activeField.type === 'yams') ? 'puff' : world.activeField.type);
         }
 
         world.step(dt);
