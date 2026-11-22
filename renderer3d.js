@@ -349,6 +349,9 @@
   uniform float uIsWhite;
   uniform float uNeonMode;
   uniform float uCheeky;
+  uniform float uHeat;
+  uniform float uIsGhost;
+  uniform float uMegaLevel;
   uniform int uShadowPass;
 
   out vec4 fragColor;
@@ -360,7 +363,8 @@
 
     if (uShadowPass == 1) {
       if (vNormal.y < 0.0) discard;
-      fragColor = vec4(0.22, 0.10, 0.30, uNeonMode > 0.5 ? 0.32 : 0.14);
+      float sAlpha = uIsGhost > 0.5 ? 0.05 : (uNeonMode > 0.5 ? 0.32 : 0.14);
+      fragColor = vec4(0.22, 0.10, 0.30, sAlpha);
       return;
     }
 
@@ -376,7 +380,7 @@
       float rim = pow(1.0 - max(dot(N, V), 0.0), 3.0);
       vec3 darkBerry = mix(vec3(0.10, 0.03, 0.08), vec3(0.45, 0.78, 0.98), uFrozen * 0.65);
       vec3 col = darkBerry + vec3(1.0) * spec * 0.95 + vec3(0.4) * rim * 0.25;
-      float partAlpha = vPart > 1.5 ? smoothstep(0.08, 0.45, uCheeky) * 0.78 : 1.0;
+      float partAlpha = vPart > 1.5 ? smoothstep(0.08, 0.45, uCheeky) * 0.78 : (uIsGhost > 0.5 ? 0.65 : 1.0);
       fragColor = vec4(col, partAlpha);
       return;
     }
@@ -403,6 +407,12 @@
       coreCol = mix(coreCol, vec3(0.88, 0.98, 1.0), uFrozen * 0.78);
     }
 
+    // Heat Laser molten glow
+    if (uHeat > 0.02) {
+      baseCol = mix(baseCol, vec3(1.0, 0.32, 0.04), uHeat * 0.72);
+      coreCol = mix(coreCol, vec3(1.0, 0.92, 0.42), uHeat * 0.85);
+    }
+
     // Wrap diffuse + Subsurface Scattering (SSS) internal gelatin transmission
     float wrapDiff = clamp((dot(N, L1) + 0.55) / 1.55, 0.0, 1.0);
     float fillDiff = clamp((dot(N, L2) + 0.4) / 1.4, 0.0, 1.0) * 0.35;
@@ -426,8 +436,14 @@
 
     vec3 rimTint = uIsWhite > 0.5 ? vec3(1.0, 0.92, 0.68) : mix(baseCol, vec3(1.0), 0.65);
     vec3 finalRgb = jellyColor
-      + rimTint * fresnel * (0.42 + uFrozen * 0.4 + uIsWhite * 0.16)
+      + rimTint * fresnel * (0.42 + uFrozen * 0.4 + uIsWhite * 0.16 + uIsGhost * 0.55)
       + vec3(1.0, 0.98, 0.99) * (specBroad + specWet + specRim);
+
+    // Mega-Bear fused prismatic rim shimmer
+    if (uMegaLevel > 0.5) {
+      vec3 megaGlow = 0.5 + 0.5 * cos(vLocalPos.y * 4.5 + vec3(0.0, 2.1, 4.2));
+      finalRgb += megaGlow * fresnel * 0.38;
+    }
 
     // Optional Sour Sugar Coating crystal sparkles
     if (uSugarCoat > 0.5) {
@@ -450,6 +466,9 @@
     }
 
     float alpha = mix(0.90, 0.96, fresnel + uFrozen * 0.2 + uSugarCoat * 0.06);
+    if (uIsGhost > 0.5) {
+      alpha = mix(0.32, 0.68, fresnel);
+    }
     fragColor = vec4(finalRgb, clamp(alpha, 0.0, 1.0));
   }`;
 
@@ -623,6 +642,7 @@
   uniform float uIsGoldenMan;
   uniform float uIsObtuseMan;
   uniform float uNeonMode;
+  uniform float uAlpha;
   uniform int uShadowPass;
 
   out vec4 fragColor;
@@ -630,7 +650,7 @@
   void main() {
     if (uShadowPass == 1) {
       if (vNormal.y < -0.15) discard;
-      fragColor = vec4(0.18, 0.08, 0.26, uNeonMode > 0.5 ? 0.36 : 0.18);
+      fragColor = vec4(0.18, 0.08, 0.26, (uNeonMode > 0.5 ? 0.36 : 0.18) * uAlpha);
       return;
     }
 
@@ -736,14 +756,14 @@
       col += uSkinMain * (0.18 + fresnel * 0.32);
     }
 
-    fragColor = vec4(col, 1.0);
+    fragColor = vec4(col, uAlpha);
   }`;
 
   class GummyRenderer3D {
     constructor(canvas, world) {
       this.canvas = canvas;
       this.world = world;
-      const gl = canvas.getContext('webgl2', { antialias: true, alpha: false });
+      const gl = canvas.getContext('webgl2', { antialias: true, alpha: false, preserveDrawingBuffer: true });
       if (!gl) {
         throw new Error('WebGL2 is required for 3D Gummy Bounce.');
       }
@@ -790,7 +810,10 @@
         uIsWhite: gl.getUniformLocation(this.bearProg, 'uIsWhite'),
         uNeonMode: gl.getUniformLocation(this.bearProg, 'uNeonMode'),
         uBellyBulge: gl.getUniformLocation(this.bearProg, 'uBellyBulge'),
-        uCheeky: gl.getUniformLocation(this.bearProg, 'uCheeky')
+        uCheeky: gl.getUniformLocation(this.bearProg, 'uCheeky'),
+        uHeat: gl.getUniformLocation(this.bearProg, 'uHeat'),
+        uIsGhost: gl.getUniformLocation(this.bearProg, 'uIsGhost'),
+        uMegaLevel: gl.getUniformLocation(this.bearProg, 'uMegaLevel')
       };
 
       this.restNodesFlat = new Float32Array(REST_NODES_3D.length * 3);
@@ -824,7 +847,8 @@
         uEyeGlow: gl.getUniformLocation(this.thiefProg, 'uEyeGlow'),
         uIsGoldenMan: gl.getUniformLocation(this.thiefProg, 'uIsGoldenMan'),
         uIsObtuseMan: gl.getUniformLocation(this.thiefProg, 'uIsObtuseMan'),
-        uNeonMode: gl.getUniformLocation(this.thiefProg, 'uNeonMode')
+        uNeonMode: gl.getUniformLocation(this.thiefProg, 'uNeonMode'),
+        uAlpha: gl.getUniformLocation(this.thiefProg, 'uAlpha')
       };
       this.thiefWorldMats = Array.from({ length: 13 }, () => new Float32Array(16));
       this.thiefBoneUniforms = new Float32Array(13 * 16);
@@ -1278,6 +1302,7 @@
       gl.uniform1f(this.thiefLocs.uIsGoldenMan, 0.0);
       gl.uniform1f(this.thiefLocs.uIsObtuseMan, 0.0);
       gl.uniform1f(this.thiefLocs.uNeonMode, this.neonMode ? 1.0 : 0.0);
+      gl.uniform1f(this.thiefLocs.uAlpha, 1.0);
       gl.bindVertexArray(this.thiefVAO);
 
       // 1. Planar 3D Humanoid Floor Shadow
@@ -1423,6 +1448,7 @@
       gl.uniform1f(this.thiefLocs.uIsGoldenMan, 0.0);
       gl.uniform1f(this.thiefLocs.uIsObtuseMan, 1.0);
       gl.uniform1f(this.thiefLocs.uNeonMode, this.neonMode ? 1.0 : 0.0);
+      gl.uniform1f(this.thiefLocs.uAlpha, 1.0);
       gl.bindVertexArray(this.thiefVAO);
 
       gl.disable(gl.CULL_FACE);
@@ -1532,6 +1558,7 @@
       gl.uniform1f(this.thiefLocs.uIsGoldenMan, 1.0);
       gl.uniform1f(this.thiefLocs.uIsObtuseMan, 0.0);
       gl.uniform1f(this.thiefLocs.uNeonMode, this.neonMode ? 1.0 : 0.0);
+      gl.uniform1f(this.thiefLocs.uAlpha, 1.0);
       gl.bindVertexArray(this.thiefVAO);
 
       // Planar floor shadow while near arena
@@ -1546,6 +1573,159 @@
 
       gl.uniform1i(this.thiefLocs.uShadowPass, 0);
       gl.drawElements(gl.TRIANGLES, this.thiefIndexCount, gl.UNSIGNED_INT, 0);
+    }
+
+    drawBossObtuseMan(bs) {
+      const gl = this.gl;
+      this.computeObtuseManSkinMatrices({
+        x: bs.x,
+        z: bs.z,
+        yaw: bs.yaw,
+        stridePhase: bs.stridePhase,
+        animTime: bs.animTime,
+        phase: 'charge'
+      });
+      // Scale all bone matrices around boss root (bs.x, 0, bs.z) by bs.scale
+      const s = bs.scale || 1.85;
+      const scaleMat = new Float32Array(16);
+      mat4Identity(scaleMat);
+      mat4TranslateInPlace(scaleMat, bs.x, 0, bs.z);
+      mat4ScaleInPlace(scaleMat, s, s, s);
+      mat4TranslateInPlace(scaleMat, -bs.x, 0, -bs.z);
+      const tmp = this.thiefScratchMat;
+      for (let i = 0; i < 13; i++) {
+        const slice = this.thiefBoneUniforms.subarray(i * 16, (i + 1) * 16);
+        mat4Multiply(tmp, scaleMat, slice);
+        this.thiefBoneUniforms.set(tmp, i * 16);
+      }
+
+      const f = bs.hitFlash || 0;
+      const skinMain = [0.62 + f * 0.38, 0.14 + f * 0.72, 0.28 + f * 0.62];
+      const skinDark = [0.28 + f * 0.4, 0.05 + f * 0.4, 0.12 + f * 0.4];
+      const skinLight = [1.0, 0.48 + f * 0.52, 0.42 + f * 0.58];
+      const eyeGlow = [1.0, 0.92, 0.18];
+
+      gl.useProgram(this.thiefProg);
+      gl.uniformMatrix4fv(this.thiefLocs.uViewProj, false, this.viewProjMat);
+      gl.uniformMatrix4fv(this.thiefLocs.uBones, false, this.thiefBoneUniforms);
+      gl.uniform3fv(this.thiefLocs.uCamPos, this.cam.eye);
+      gl.uniform3fv(this.thiefLocs.uSkinMain, skinMain);
+      gl.uniform3fv(this.thiefLocs.uSkinDark, skinDark);
+      gl.uniform3fv(this.thiefLocs.uSkinLight, skinLight);
+      gl.uniform3fv(this.thiefLocs.uEyeGlow, eyeGlow);
+      gl.uniform1f(this.thiefLocs.uIsGoldenMan, 0.0);
+      gl.uniform1f(this.thiefLocs.uIsObtuseMan, 1.0);
+      gl.uniform1f(this.thiefLocs.uNeonMode, this.neonMode ? 1.0 : 0.0);
+      gl.uniform1f(this.thiefLocs.uAlpha, 1.0);
+      gl.bindVertexArray(this.thiefVAO);
+
+      gl.disable(gl.CULL_FACE);
+      gl.depthMask(false);
+      gl.uniform1i(this.thiefLocs.uShadowPass, 1);
+      gl.drawElements(gl.TRIANGLES, this.thiefIndexCount, gl.UNSIGNED_INT, 0);
+      gl.depthMask(true);
+      gl.enable(gl.CULL_FACE);
+
+      gl.uniform1i(this.thiefLocs.uShadowPass, 0);
+      gl.drawElements(gl.TRIANGLES, this.thiefIndexCount, gl.UNSIGNED_INT, 0);
+    }
+
+    drawSurvivalThief(th) {
+      const gl = this.gl;
+      this.computeGreenManSkinMatrices({
+        x: th.x,
+        z: th.z,
+        yaw: th.yaw,
+        stridePhase: th.stridePhase,
+        animTime: th.animTime,
+        phase: th.phase,
+        variant: th.variant === 'ghost' ? 'blue' : th.variant,
+        capturedBears: th.targetBear ? [th.targetBear] : []
+      });
+
+      let skinMain, skinDark, skinLight, eyeGlow;
+      let alpha = 1.0;
+      if (th.variant === 'ghost') {
+        skinMain = [0.68, 0.94, 1.0];
+        skinDark = [0.34, 0.58, 0.78];
+        skinLight = [0.95, 1.0, 1.0];
+        eyeGlow = [0.35, 1.0, 0.92];
+        alpha = 0.34 + 0.24 * Math.sin(th.flickerPhase || 0);
+      } else if (th.variant === 'red') {
+        skinMain = [0.96, 0.14, 0.18];
+        skinDark = [0.54, 0.05, 0.09];
+        skinLight = [1.0, 0.48, 0.42];
+        eyeGlow = [1.0, 0.94, 0.28];
+      } else {
+        skinMain = [0.12, 0.78, 0.29];
+        skinDark = [0.05, 0.42, 0.15];
+        skinLight = [0.40, 0.96, 0.52];
+        eyeGlow = [1.00, 0.97, 0.48];
+      }
+
+      gl.useProgram(this.thiefProg);
+      gl.uniformMatrix4fv(this.thiefLocs.uViewProj, false, this.viewProjMat);
+      gl.uniformMatrix4fv(this.thiefLocs.uBones, false, this.thiefBoneUniforms);
+      gl.uniform3fv(this.thiefLocs.uCamPos, this.cam.eye);
+      gl.uniform3fv(this.thiefLocs.uSkinMain, skinMain);
+      gl.uniform3fv(this.thiefLocs.uSkinDark, skinDark);
+      gl.uniform3fv(this.thiefLocs.uSkinLight, skinLight);
+      gl.uniform3fv(this.thiefLocs.uEyeGlow, eyeGlow);
+      gl.uniform1f(this.thiefLocs.uIsGoldenMan, 0.0);
+      gl.uniform1f(this.thiefLocs.uIsObtuseMan, 0.0);
+      gl.uniform1f(this.thiefLocs.uNeonMode, this.neonMode ? 1.0 : 0.0);
+      gl.uniform1f(this.thiefLocs.uAlpha, alpha);
+      gl.bindVertexArray(this.thiefVAO);
+
+      gl.disable(gl.CULL_FACE);
+      gl.depthMask(false);
+      gl.uniform1i(this.thiefLocs.uShadowPass, 1);
+      gl.drawElements(gl.TRIANGLES, this.thiefIndexCount, gl.UNSIGNED_INT, 0);
+      gl.depthMask(true);
+      gl.enable(gl.CULL_FACE);
+
+      gl.uniform1i(this.thiefLocs.uShadowPass, 0);
+      gl.drawElements(gl.TRIANGLES, this.thiefIndexCount, gl.UNSIGNED_INT, 0);
+    }
+
+    drawBearHat(bear, hatId, timeSec) {
+      if (!hatId || hatId === 'none') return;
+      const head = bear.nodes[2];
+      if (!head) return;
+      const s = bear.scale;
+      const upX = bear.rotMat[3];
+      const upY = bear.rotMat[4];
+      const upZ = bear.rotMat[5];
+      const hx = head.x + upX * (0.48 * s);
+      const hy = head.y + upY * (0.48 * s);
+      const hz = head.z + upZ * (0.48 * s);
+
+      if (hatId === 'halo') {
+        mat4FromTRS(this.modelMat, hx, hy + 0.28 * s, hz, Math.PI * 0.5, timeSec * 2.2, 0, 0.38 * s, 0.38 * s, 0.38 * s);
+        this.drawMesh(this.thinRingVAO, this.modelMat, 3, 1.0, 0.86, 0.18, 0.95);
+      } else if (hatId === 'crown') {
+        mat4FromTRS(this.modelMat, hx, hy + 0.08 * s, hz, 0, timeSec * 0.8, 0, 0.30 * s, 0.24 * s, 0.30 * s);
+        this.drawMesh(this.cylVAO, this.modelMat, 0, 1.0, 0.78, 0.08, 1.0);
+        mat4FromTRS(this.modelMat, hx, hy + 0.22 * s, hz, Math.PI * 0.5, timeSec * 0.8, 0, 0.32 * s, 0.32 * s, 0.32 * s);
+        this.drawMesh(this.thinRingVAO, this.modelMat, 3, 1.0, 0.94, 0.38, 1.0);
+      } else if (hatId === 'tophat') {
+        mat4FromTRS(this.modelMat, hx, hy + 0.02 * s, hz, 0, 0, 0, 0.42 * s, 0.06 * s, 0.42 * s);
+        this.drawMesh(this.cylVAO, this.modelMat, 0, 0.12, 0.10, 0.18, 1.0);
+        mat4FromTRS(this.modelMat, hx, hy + 0.26 * s, hz, 0, 0, 0, 0.26 * s, 0.44 * s, 0.26 * s);
+        this.drawMesh(this.cylVAO, this.modelMat, 0, 0.16, 0.14, 0.24, 1.0);
+        mat4FromTRS(this.modelMat, hx, hy + 0.10 * s, hz, 0, 0, 0, 0.275 * s, 0.08 * s, 0.275 * s);
+        this.drawMesh(this.cylVAO, this.modelMat, 0, 0.98, 0.20, 0.42, 1.0);
+      } else if (hatId === 'party') {
+        mat4FromTRS(this.modelMat, hx, hy + 0.24 * s, hz, 0, 0, 0, 0.26 * s, 0.46 * s, 0.26 * s);
+        this.drawMesh(this.cylVAO, this.modelMat, 2, 1.0, 0.24, 0.68, 1.0, [0.22, 0.92, 1.0]);
+        mat4FromTRS(this.modelMat, hx, hy + 0.50 * s, hz, 0, 0, 0, 0.11 * s, 0.11 * s, 0.11 * s);
+        this.drawMesh(this.sphereVAO, this.modelMat, 3, 1.0, 0.88, 0.18, 1.0);
+      } else if (hatId === 'wizard') {
+        mat4FromTRS(this.modelMat, hx, hy + 0.02 * s, hz, 0, 0, 0, 0.46 * s, 0.06 * s, 0.46 * s);
+        this.drawMesh(this.cylVAO, this.modelMat, 0, 0.28, 0.14, 0.78, 1.0);
+        mat4FromTRS(this.modelMat, hx, hy + 0.28 * s, hz, 0.14, 0, 0, 0.24 * s, 0.52 * s, 0.24 * s);
+        this.drawMesh(this.cylVAO, this.modelMat, 2, 0.34, 0.16, 0.86, 1.0, [1.0, 0.88, 0.22]);
+      }
     }
 
     render(timeSec) {
@@ -1637,12 +1817,71 @@
       mat4AlignBeam(this.modelMat, bx, 1.1, -bz, bx, 1.1, bz, 0.07);
       this.drawMesh(this.cylVAO, this.modelMat, 4, 0.78, 0.58, 0.98, 0.42);
 
-      // Tall 3D Green/Red/Yellow Man, Hulking Obtuse Man & Celestial 3D Golden Man
+      // 3D Pinball Bumpers & Launch Pads
+      if (w.bumpers && w.bumpers.enabled) {
+        for (const post of w.bumpers.posts) {
+          const ps = 1 + post.pulse * 0.22;
+          const [cr, cg, cb] = post.color;
+          // Striped arcade bumper body
+          mat4FromTRS(this.modelMat, post.x, post.height * 0.5, post.z, 0, timeSec * 1.5, 0, post.radius * 0.85 * ps, post.height, post.radius * 0.85 * ps);
+          this.drawMesh(this.cylVAO, this.modelMat, 2, cr, cg, cb, 1.0, [1.0, 0.98, 0.94]);
+          // Glowing bumper cap
+          mat4FromTRS(this.modelMat, post.x, post.height + 0.08, post.z, 0, 0, 0, post.radius * 1.05 * ps, 0.24, post.radius * 1.05 * ps);
+          this.drawMesh(this.cylVAO, this.modelMat, 0, cr + post.pulse * 0.4, cg + post.pulse * 0.4, cb + post.pulse * 0.4, 1.0);
+          // Neon ring halo
+          mat4FromTRS(this.modelMat, post.x, post.height * 0.65, post.z, Math.PI * 0.5, 0, 0, post.radius * 1.15 * ps, post.radius * 1.15 * ps, post.radius * 1.15 * ps);
+          this.drawMesh(this.thinRingVAO, this.modelMat, 3, cr, cg, cb, 0.72 + post.pulse * 0.28);
+        }
+        for (const pad of w.bumpers.pads) {
+          const ps = 1 + pad.pulse * 0.18;
+          mat4FromTRS(this.modelMat, pad.x, 0.12, pad.z, 0, 0, 0, pad.radius * ps, 0.22, pad.radius * ps);
+          this.drawMesh(this.cylVAO, this.modelMat, 0, 0.12, 0.88, 0.62, 1.0);
+          mat4FromTRS(this.modelMat, pad.x, 0.22 + pad.pulse * 0.18, pad.z, Math.PI * 0.5, timeSec * 2.5, 0, pad.radius * 0.82 * ps, pad.radius * 0.82 * ps, pad.radius * 0.82 * ps);
+          this.drawMesh(this.thinRingVAO, this.modelMat, 3, 0.42, 1.0, 0.84, 0.92);
+        }
+      }
+
+      // 3D Upward Wind Tunnel / Floor Fan
+      if (w.fan && w.fan.enabled) {
+        const fn = w.fan;
+        // Fan housing rim
+        mat4FromTRS(this.modelMat, fn.x, 0.14, fn.z, 0, 0, 0, fn.radius, 0.26, fn.radius);
+        this.drawMesh(this.cylVAO, this.modelMat, 0, 0.24, 0.62, 0.94, 1.0);
+        mat4FromTRS(this.modelMat, fn.x, 0.18, fn.z, 0, 0, 0, fn.radius * 0.86, 0.22, fn.radius * 0.86);
+        this.drawMesh(this.cylVAO, this.modelMat, 0, 0.08, 0.18, 0.34, 1.0);
+        // Spinning fan blades (3 beams)
+        for (let bIdx = 0; bIdx < 3; bIdx++) {
+          const ang = fn.angle + (bIdx * Math.PI * 2) / 3;
+          const ca = Math.cos(ang);
+          const sa = Math.sin(ang);
+          const rLen = fn.radius * 0.8;
+          mat4AlignBeam(this.modelMat, fn.x - ca * rLen, 0.28, fn.z - sa * rLen, fn.x + ca * rLen, 0.28, fn.z + sa * rLen, 0.18);
+          this.drawMesh(this.cylVAO, this.modelMat, 0, 0.68, 0.95, 1.0, 1.0);
+        }
+        // Rising translucent air rings
+        for (let ring = 0; ring < 5; ring++) {
+          const phase = ((timeSec * 1.4 + ring * 0.2) % 1.0);
+          const ry = 0.4 + phase * 9.5;
+          const rr = fn.radius * (0.72 + phase * 0.26);
+          mat4FromTRS(this.modelMat, fn.x, ry, fn.z, Math.PI * 0.5, 0, timeSec * 3.0 + ring, rr, rr, rr);
+          this.drawMesh(this.thinRingVAO, this.modelMat, 3, 0.55, 0.94, 1.0, (1 - phase) * 0.45);
+        }
+      }
+
+      // Tall 3D Green/Red/Yellow Man, Hulking Obtuse Man, Boss, Survival Thieves & Celestial 3D Golden Man
       if (w.greenMan && w.greenMan.active) {
         this.drawGreenMan(w.greenMan);
       }
       if (w.obtuseMan && w.obtuseMan.active) {
         this.drawObtuseMan(w.obtuseMan);
+      }
+      if (w.boss && w.boss.active) {
+        this.drawBossObtuseMan(w.boss);
+      }
+      if (w.survival && w.survival.active) {
+        for (const th of w.survival.thieves) {
+          this.drawSurvivalThief(th);
+        }
       }
       if (w.goldenMan && w.goldenMan.active) {
         this.drawGoldenMan(w.goldenMan);
@@ -1664,6 +1903,7 @@
         gl.uniform1f(this.bearLocs.uScale, b.scale);
         gl.uniform1f(this.bearLocs.uBellyBulge, b.bellyBulge || 0);
         gl.uniform1f(this.bearLocs.uCheeky, b.cheekyAmount || 0);
+        gl.uniform1f(this.bearLocs.uIsGhost, b.flavor.isGhost ? 1.0 : 0.0);
         gl.drawElements(gl.TRIANGLES, this.bearIndexCount, gl.UNSIGNED_INT, 0);
       }
       gl.depthMask(true);
@@ -1691,6 +1931,9 @@
         gl.uniform1f(this.bearLocs.uIsWhite, b.flavor.isWhite ? 1.0 : 0.0);
         gl.uniform1f(this.bearLocs.uBellyBulge, b.bellyBulge || 0);
         gl.uniform1f(this.bearLocs.uCheeky, b.cheekyAmount || 0);
+        gl.uniform1f(this.bearLocs.uHeat, b.heat || 0);
+        gl.uniform1f(this.bearLocs.uIsGhost, b.flavor.isGhost ? 1.0 : 0.0);
+        gl.uniform1f(this.bearLocs.uMegaLevel, b.megaLevel || 0);
         gl.drawElements(gl.TRIANGLES, this.bearIndexCount, gl.UNSIGNED_INT, 0);
       }
 
@@ -1802,7 +2045,49 @@
           const col = fld.shrink ? [1.0, 0.55, 0.12] : [0.25, 0.92, 0.58];
           mat4FromTRS(this.modelMat, fld.x, 0.18, fld.z, Math.PI * 0.5, 0, 0, r, r, r);
           this.drawMesh(this.thinRingVAO, this.modelMat, 3, col[0], col[1], col[2], 0.78);
+        } else if (fld.type === 'heat') {
+          const r = 2.1 + Math.sin(timeSec * 16) * 0.24;
+          mat4FromTRS(this.modelMat, fld.x, 0.18, fld.z, Math.PI * 0.5, 0, 0, r, r, r);
+          this.drawMesh(this.thinRingVAO, this.modelMat, 3, 1.0, 0.34, 0.06, 0.92);
+          mat4AlignBeam(this.modelMat, fld.x, 0.12, fld.z, fld.x, 8.5, fld.z, 0.18 + Math.sin(timeSec * 24) * 0.04);
+          this.drawMesh(this.cylVAO, this.modelMat, 4, 1.0, 0.45, 0.08, 0.45);
         }
+      }
+
+      // 3D Portals (Portal Gun)
+      if (w.portals) {
+        const drawPortal = (p, col1, col2) => {
+          if (!p) return;
+          const r = p.radius * (1 + p.pulse * 0.18);
+          mat4FromTRS(this.modelMat, p.x, p.y, p.z, 0, timeSec * 1.4, 0, r, r, r);
+          this.drawMesh(this.hoopVAO, this.modelMat, 3, col1[0], col1[1], col1[2], 0.95);
+          mat4FromTRS(this.modelMat, p.x, p.y, p.z, 0, -timeSec * 2.8, 0, r * 0.72, r * 0.72, r * 0.72);
+          this.drawMesh(this.thinRingVAO, this.modelMat, 3, col2[0], col2[1], col2[2], 0.78);
+          mat4FromTRS(this.modelMat, p.x, p.y, p.z, Math.PI * 0.5, timeSec * 2.2, 0, r * 0.45, r * 0.45, r * 0.45);
+          this.drawMesh(this.thinRingVAO, this.modelMat, 3, col1[0], col1[1], col1[2], 0.55);
+        };
+        drawPortal(w.portals.a, [0.10, 0.85, 1.0], [0.65, 0.98, 1.0]);
+        drawPortal(w.portals.b, [1.0, 0.45, 0.06], [1.0, 0.85, 0.32]);
+      }
+
+      // 3D Bear Hats & Wall Glue Blobs
+      const hatId = w.selectedHat || 'none';
+      for (const b of w.bears) {
+        if (hatId !== 'none') {
+          this.drawBearHat(b, hatId, timeSec);
+        }
+        if (b.glued) {
+          mat4FromTRS(this.modelMat, b.glued.x, b.glued.y, b.glued.z, 0, 0, 0, 0.42 * b.scale, 0.42 * b.scale, 0.42 * b.scale);
+          this.drawMesh(this.sphereVAO, this.modelMat, 3, 1.0, 0.48, 0.82, 0.72);
+        }
+      }
+
+      // Boss Fight Arena Danger Ring
+      if (w.boss && w.boss.active) {
+        const bs = w.boss;
+        const br = 2.35 + Math.sin(timeSec * 8) * 0.16;
+        mat4FromTRS(this.modelMat, bs.x, 0.08, bs.z, Math.PI * 0.5, timeSec * 2.0, 0, br, br, br);
+        this.drawMesh(this.thinRingVAO, this.modelMat, 3, 1.0, 0.18, 0.24, 0.88);
       }
 
       // Expanding 3D Shockwave Rings
