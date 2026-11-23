@@ -1260,4 +1260,87 @@
     background: rgb(243 232 255 / 0.96);
     transform: translateY(-1px);
   }
+
+  /* Mega 50 Popover, Missions, Save Row & FPS Pill */
+  .mega-popover {
+    width: min(560px, 94vw);
+    max-height: 82vh;
+    overflow-y: auto;
+  }
+  .mega-popover h3 {
+    margin: 0.85rem 0 0.45rem;
+    font-size: 0.88rem;
+    color: #5b21b6;
+  }
+  .mega-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(122px, 1fr));
+    gap: 0.42rem;
+  }
+  .mega-btn {
+    padding: 0.44rem 0.52rem;
+    border-radius: 10px;
+    border: 1.5px solid rgb(168 85 247 / 0.28);
+    background: rgb(255 255 255 / 0.9);
+    color: #2e1065;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: center;
+    transition: transform 110ms ease, background 110ms ease;
+  }
+  .mega-btn:hover {
+    transform: translateY(-1px);
+    background: rgb(243 232 255 / 0.96);
+  }
+  .mega-btn[aria-pressed="true"] {
+    background: linear-gradient(135deg, #9333ea, #ec4899);
+    color: #fff;
+    border-color: transparent;
+  }
+  .custom-color-row,
+  .save-row {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-top: 0.55rem;
+    flex-wrap: wrap;
+    font-size: 0.82rem;
+    font-weight: 600;
+  }
+  .mission-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .mission-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.38rem 0.6rem;
+    border-radius: 10px;
+    background: rgb(168 85 247 / 0.1);
+    font-size: 0.78rem;
+    font-weight: 600;
+  }
+  .mission-item.done {
+    background: linear-gradient(135deg, rgb(187 247 208 / 0.9), rgb(254 249 195 / 0.9));
+    color: #14532d;
+  }
+  .fps-pill {
+    position: fixed;
+    inset-block-end: 0.75rem;
+    inset-inline-start: 0.85rem;
+    z-index: 25;
+    padding: 0.3rem 0.68rem;
+    border-radius: 999px;
+    background: rgb(18 12 34 / 0.82);
+    color: #e9d5ff;
+    font-size: 0.76rem;
+    font-weight: 700;
+    backdrop-filter: blur(8px);
+  }
+  .fps-pill[hidden] {
+    display: none;
+  }
 }

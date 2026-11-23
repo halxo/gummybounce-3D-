@@ -111,8 +111,11 @@
         <button type="button" class="action-btn" commandfor="jelly-lab-popover" command="toggle-popover" title="Tune 3D squishiness, bounce, gravity &amp; size">
           <span aria-hidden="true">⚙️</span> Lab
         </button>
-        <button type="button" class="action-btn" commandfor="trophies-popover" command="toggle-popover" title="High Scores, Achievements &amp; 3D Bear Hats">
+        <button type="button" class="action-btn" commandfor="trophies-popover" command="toggle-popover" title="High Scores, Achievements, Missions &amp; 12 3D Bear Hats">
           <span aria-hidden="true">🏆</span> Hats
+        </button>
+        <button type="button" class="action-btn primary" commandfor="mega-popover" command="toggle-popover" title="50+ Extra Tools, Flavors, Gadgets, Mini-Games, DJ Rave &amp; Cameras!">
+          <span aria-hidden="true">✨</span> Mega 50
         </button>
         <button type="button" id="btn-photo-mode" class="icon-btn" aria-label="Photo Mode" aria-pressed="false" title="Photo Mode — freeze frame, orbit &amp; download PNG (Key C)">
           <span aria-hidden="true">📸</span>
@@ -288,18 +291,92 @@
     </div>
   </div>
 
+  <div id="fps-pill" class="fps-pill" hidden>FPS: <strong id="fps-val">60</strong> · Bears: <strong id="bear-count-val">0</strong></div>
+
   <div id="trophies-popover" class="candy-popover trophies-popover" popover="auto">
-    <h2>🏆 High Scores, Hats &amp; Achievements</h2>
+    <h2>🏆 High Scores, Missions &amp; Hats</h2>
     <div class="stats-grid" id="stats-grid">
       <div class="stat-card"><span>Best Score</span><strong id="stat-best-score">0</strong></div>
       <div class="stat-card"><span>Time-Attack</span><strong id="stat-best-ta">0</strong></div>
       <div class="stat-card"><span>Survival Wave</span><strong id="stat-best-wave">0</strong></div>
       <div class="stat-card"><span>Bosses KO'd</span><strong id="stat-bosses">0</strong></div>
     </div>
-    <h3>🎩 3D Bear Hats</h3>
+    <h3>🎯 Session Missions</h3>
+    <div class="mission-list" id="mission-list"></div>
+    <h3>🎩 12 3D Bear Hats</h3>
     <div class="hat-grid" id="hat-grid"></div>
-    <h3>🎖️ Achievements (<span id="ach-progress">0/10</span>)</h3>
+    <h3>🎖️ Achievements (<span id="ach-progress">0/20</span>)</h3>
     <div class="ach-list" id="ach-list"></div>
+    <div class="save-row">
+      <button type="button" id="btn-export-save" class="secondary-btn">📋 Copy Save Code</button>
+      <button type="button" id="btn-import-save" class="secondary-btn">📥 Import Save</button>
+    </div>
+  </div>
+
+  <div id="mega-popover" class="candy-popover mega-popover" popover="auto">
+    <h2>✨ Mega 50+ Expansion Pack</h2>
+
+    <h3>🛠️ 10 Extra 3D Tools &amp; Powers</h3>
+    <div class="mega-grid">
+      <button type="button" class="mega-btn tool-btn" data-mode="blackhole">🕳️ Black Hole</button>
+      <button type="button" class="mega-btn tool-btn" data-mode="bomb">💣 Candy Bomb</button>
+      <button type="button" class="mega-btn tool-btn" data-mode="clone">🪞 Clone Ray</button>
+      <button type="button" class="mega-btn tool-btn" data-mode="paint">🎨 Rainbow Brush</button>
+      <button type="button" class="mega-btn tool-btn" data-mode="bonk">🔨 Giant Bonk</button>
+      <button type="button" class="mega-btn tool-btn" data-mode="bungee">🪢 Bungee Cord</button>
+      <button type="button" class="mega-btn tool-btn" data-mode="bubble">🫧 Bubble Trap</button>
+      <button type="button" id="btn-grav-flip" class="mega-btn">🙃 Flip Gravity</button>
+      <button type="button" id="btn-disco-pulse" class="mega-btn">🪩 Disco Pulse</button>
+      <button type="button" id="btn-time-freeze" class="mega-btn">⏸️ Freeze Time</button>
+    </div>
+
+    <h3>🍬 10 Extra Flavors &amp; Custom Bear Maker</h3>
+    <div class="mega-grid">
+      <button type="button" class="mega-btn flavor-spawn" data-extra-flavor="bubblegum">🩷 Bubblegum</button>
+      <button type="button" class="mega-btn flavor-spawn" data-extra-flavor="cottoncandy">☁️ Cotton Candy</button>
+      <button type="button" class="mega-btn flavor-spawn" data-extra-flavor="mint">🌿 Mint Chill</button>
+      <button type="button" class="mega-btn flavor-spawn" data-extra-flavor="lava">🌋 Lava Magma</button>
+      <button type="button" class="mega-btn flavor-spawn" data-extra-flavor="galaxy">🌌 Galaxy</button>
+      <button type="button" class="mega-btn flavor-spawn" data-extra-flavor="toxic">☢️ Toxic Lime</button>
+      <button type="button" class="mega-btn flavor-spawn" data-extra-flavor="peach">🍑 Peach (+Yams!)</button>
+      <button type="button" class="mega-btn flavor-spawn" data-extra-flavor="choco">🍫 Choco Heavy</button>
+      <button type="button" class="mega-btn flavor-spawn" data-extra-flavor="rainbow">🌈 Rainbow</button>
+      <button type="button" class="mega-btn flavor-spawn" data-extra-flavor="diamond">💎 Diamond (8pt)</button>
+    </div>
+    <div class="custom-color-row">
+      <label for="custom-color-input">Custom Bear Color:</label>
+      <input type="color" id="custom-color-input" value="#ff33aa">
+      <button type="button" id="btn-spawn-custom" class="action-btn primary">Drop Custom</button>
+    </div>
+
+    <h3>🎪 10 Arena Gadgets &amp; Themes</h3>
+    <div class="mega-grid">
+      <button type="button" id="tog-bowling" class="mega-btn" aria-pressed="false">🎳 3D Bowling</button>
+      <button type="button" id="tog-pendulum" class="mega-btn" aria-pressed="false">⛓️ Wrecking Ball</button>
+      <button type="button" id="tog-laserbar" class="mega-btn" aria-pressed="false">🚨 Laser Hurdle</button>
+      <button type="button" id="tog-fountain" class="mega-btn" aria-pressed="false">⛲ Candy Fountain</button>
+      <button type="button" id="tog-icerink" class="mega-btn" aria-pressed="false">⛸️ Ice Rink Floor</button>
+      <button type="button" id="tog-moongrav" class="mega-btn" aria-pressed="false">🌕 Moon Gravity</button>
+      <button type="button" id="tog-autoturret" class="mega-btn" aria-pressed="false">🤖 Auto-Turret</button>
+      <button type="button" id="tog-booststrips" class="mega-btn" aria-pressed="false">⚡ Speed Strips</button>
+      <button type="button" id="tog-theme-sunset" class="mega-btn" aria-pressed="false">🌅 Sunset Sky</button>
+      <button type="button" id="tog-theme-space" class="mega-btn" aria-pressed="false">🌠 Space Sky</button>
+    </div>
+
+    <h3>🎮 Mini-Games, DJ Synth &amp; Cameras</h3>
+    <div class="mega-grid">
+      <button type="button" id="btn-king-gummy" class="mega-btn">🐻 King Gummy Boss</button>
+      <button type="button" id="btn-pinata-bear" class="mega-btn">🪅 Giant Piñata</button>
+      <button type="button" id="tog-lavafloor" class="mega-btn" aria-pressed="false">🌋 Floor is Lava</button>
+      <button type="button" id="btn-meteors" class="mega-btn">☄️ Meteor Shower</button>
+      <button type="button" id="btn-confetti" class="mega-btn">🎉 Confetti Cannon</button>
+      <button type="button" id="tog-djmusic" class="mega-btn" aria-pressed="false">🎵 DJ Rave 128BPM</button>
+      <button type="button" id="btn-chaos" class="mega-btn">🎲 Random Chaos!</button>
+      <button type="button" id="tog-autoorbit" class="mega-btn" aria-pressed="false">🎥 Auto-Orbit Cam</button>
+      <button type="button" id="tog-followcam" class="mega-btn" aria-pressed="false">🎯 Follow Bear Cam</button>
+      <button type="button" id="btn-lowcam" class="mega-btn">📐 Low Hero Cam</button>
+      <button type="button" id="tog-fps" class="mega-btn" aria-pressed="false">📊 Live FPS HUD</button>
+    </div>
   </div>
 
   <div id="jelly-lab-popover" class="candy-popover" popover="auto">

@@ -861,6 +861,148 @@
       osc.start(now);
       osc.stop(now + 0.17);
     }
+
+    playBombBoom() {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.exponentialRampToValueAtTime(32, now + 0.35);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.28, now + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.4);
+    }
+
+    playBonk() {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(520, now);
+      osc.frequency.exponentialRampToValueAtTime(140, now + 0.11);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.24, now + 0.006);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.15);
+    }
+
+    playBubblePop() {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(420, now);
+      osc.frequency.exponentialRampToValueAtTime(1180, now + 0.055);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.16, now + 0.008);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.08);
+    }
+
+    playPinStrike() {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const t = now + i * 0.05;
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(f, t);
+        gain.gain.setValueAtTime(0.001, t);
+        gain.gain.linearRampToValueAtTime(0.16, t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(t);
+        osc.stop(t + 0.3);
+      });
+    }
+
+    playBlackHole() {
+      const ctx = this.ensureContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(280, now);
+      osc.frequency.exponentialRampToValueAtTime(55, now + 0.45);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.18, now + 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.48);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.5);
+    }
+
+    startDjMusic(onBeat) {
+      this.stopDjMusic();
+      this.djRunning = true;
+      let step = 0;
+      const bassNotes = [110, 110, 146.83, 130.81, 110, 110, 164.81, 146.83];
+      const leadNotes = [440, 523.25, 659.25, 587.33, 523.25, 659.25, 783.99, 659.25];
+      this.djInterval = setInterval(() => {
+        if (!this.djRunning) return;
+        const ctx = this.ensureContext();
+        if (ctx) {
+          const now = ctx.currentTime;
+          // Kick on every even step
+          if (step % 2 === 0) {
+            const k = ctx.createOscillator();
+            const kg = ctx.createGain();
+            k.type = 'sine';
+            k.frequency.setValueAtTime(135, now);
+            k.frequency.exponentialRampToValueAtTime(42, now + 0.11);
+            kg.gain.setValueAtTime(0.16, now);
+            kg.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+            k.connect(kg);
+            kg.connect(ctx.destination);
+            k.start(now);
+            k.stop(now + 0.14);
+          }
+          // Candy synth arp
+          const b = ctx.createOscillator();
+          const bg = ctx.createGain();
+          b.type = step % 2 === 0 ? 'triangle' : 'square';
+          b.frequency.setValueAtTime(step % 2 === 0 ? bassNotes[step % bassNotes.length] : leadNotes[step % leadNotes.length], now);
+          bg.gain.setValueAtTime(0.055, now);
+          bg.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+          b.connect(bg);
+          bg.connect(ctx.destination);
+          b.start(now);
+          b.stop(now + 0.18);
+        }
+        if (onBeat && step % 2 === 0) onBeat(step);
+        step++;
+      }, 234); // ~128 BPM eighth notes
+    }
+
+    stopDjMusic() {
+      this.djRunning = false;
+      if (this.djInterval) {
+        clearInterval(this.djInterval);
+        this.djInterval = null;
+      }
+    }
   }
 
   window.GummyApp = window.GummyApp || {};

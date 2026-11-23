@@ -130,7 +130,14 @@
     fuse: '<strong>9 · Sticky Glue &amp; Fusion:</strong> Click near 2+ bears to fuse them into a Giant <strong>Mega-Bear</strong>, or click a lone bear to glue/unglue it on the nearest wall or ceiling!',
     portal: '<strong>0 · 3D Portal Gun:</strong> Click anywhere to place linked <strong>Cyan</strong> &amp; <strong>Orange</strong> 3D portals! Bears flying in warp out at boosted speed. (<kbd>Alt</kbd>+click to clear).',
     heat: '<strong>- · Heat Laser:</strong> Hold to melt bears stretchy &amp; extra bouncy, thaw Cryo ice, and overheat them to <strong>POP like popcorn</strong>!',
-    yams: '<strong>= · 🍠 Yams Ray:</strong> Hold on any gummy bear to pump up their <strong>jiggly 3D butt cheeks</strong>! Hold <kbd>Shift</kbd> to deflate.'
+    yams: '<strong>= · 🍠 Yams Ray:</strong> Hold on any gummy bear to pump up their <strong>jiggly 3D butt cheeks</strong>! Hold <kbd>Shift</kbd> to deflate.',
+    blackhole: '<strong>🕳️ Black Hole Gun:</strong> Click anywhere to spawn a swirling 3D gravity well that sucks in bears before exploding!',
+    bomb: '<strong>💣 Candy Bomb:</strong> Click to drop a ticking 3D candy grenade that blasts bears skyward!',
+    clone: '<strong>🪞 Clone Ray:</strong> Click any gummy bear to clone it (preserving its flavor, scale &amp; Yam Boost)!',
+    paint: '<strong>🎨 Rainbow Brush:</strong> Click any gummy bear to splash it with a random new flavor!',
+    bonk: '<strong>🔨 Giant Bonk:</strong> Click any bear to deliver a comic downward BONK slam with jelly puddles &amp; stars!',
+    bungee: '<strong>🪢 Bungee Cord:</strong> Click 2 bears in a row to link them together with an elastic 3D candy bungee cord!',
+    bubble: '<strong>🫧 Bubble Trap:</strong> Click a bear to trap it in a floating soap bubble — click again to POP it!'
   };
 
   function announce(msg) {
@@ -558,6 +565,166 @@
   if (btnYamQuake) btnYamQuake.addEventListener('click', triggerYamQuake);
   const btnYamQuakeBar = document.getElementById('btn-yam-quake-bar');
   if (btnYamQuakeBar) btnYamQuakeBar.addEventListener('click', triggerYamQuake);
+
+  // Mega 50 Callbacks & UI Wiring
+  world.onBombBoom = () => audio.playBombBoom();
+  world.onBonk = () => audio.playBonk();
+  world.onBubblePop = () => audio.playBubblePop();
+  world.onBlackHole = () => {
+    audio.playBlackHole();
+    if (progression) progression.unlock('blackhole_cast');
+  };
+  world.onBungeeLink = () => {
+    audio.playGlueSplat();
+    if (progression) progression.unlock('bungee_link');
+    showCornerToast('🪢 Linked 2 bears with a stretchy Candy Bungee!', 'blue');
+  };
+  world.onBowlingStrike = (strikes, score) => {
+    hoopScoreEl.textContent = String(score);
+    audio.playPinStrike();
+    if (progression) progression.recordStrike();
+    showCornerToast(`🎳 CANDY STRIKE #${strikes}! +30 pts!`, 'gold');
+  };
+  world.onPinataBurst = (score) => {
+    hoopScoreEl.textContent = String(score);
+    audio.playBossDefeat();
+    if (progression) progression.unlock('pinata_burst');
+    showCornerToast('🪅 PIÑATA BURST! +35 pts & 6 Rainbow/Gold Bears!', 'gold');
+  };
+  world.onChaosEvent = (name) => {
+    audio.playWaveStart();
+    if (progression) progression.recordChaos();
+    showCornerToast(`🎲 CHAOS EVENT: ${name}`, 'purple');
+  };
+
+  const wireBtn = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', () => fn(el)); };
+  const wireMegaToggle = (id, getV, setV, label) => {
+    wireBtn(id, (el) => {
+      const next = !getV();
+      setV(next);
+      el.setAttribute('aria-pressed', String(next));
+      audio.playBoop(next ? 1.18 : 0.88);
+      if (label) showCornerToast(`${label}: ${next ? 'ON' : 'OFF'}`, next ? 'purple' : 'blue');
+    });
+  };
+
+  wireMegaToggle('btn-grav-flip', () => world.gravFlipped, (v) => { world.gravFlipped = v; }, '🙃 Gravity Flip');
+  wireBtn('btn-disco-pulse', () => { world.triggerDiscoPulse(); audio.playJiggleQuake(); });
+  wireMegaToggle('btn-time-freeze', () => world.timeFreeze, (v) => { world.timeFreeze = v; }, '⏸️ Freeze Time');
+
+  document.querySelectorAll('.flavor-spawn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const flv = btn.dataset.extraFlavor;
+      const b = world.spawnBear((Math.random() - 0.5) * 6, 8.0, (Math.random() - 0.5) * 4, flv);
+      audio.playBoop(1.15);
+      showCornerToast(`🍬 Dropped ${b.flavor.name} Bear!`, 'purple');
+    });
+  });
+
+  wireBtn('btn-spawn-custom', () => {
+    const inp = document.getElementById('custom-color-input');
+    const hex = inp ? inp.value : '#ff33aa';
+    world.spawnCustomColorBear(hex, (Math.random() - 0.5) * 5, 8.0, (Math.random() - 0.5) * 4);
+    audio.playBoop(1.25);
+    if (progression) progression.unlock('custom_bear');
+    showCornerToast(`🎨 Dropped Custom ${hex} Bear!`, 'purple');
+  });
+
+  wireMegaToggle('tog-bowling', () => world.bowling.enabled, (v) => world.setupBowlingPins(v), '🎳 3D Bowling Pins');
+  wireMegaToggle('tog-pendulum', () => world.pendulum.enabled, (v) => { world.pendulum.enabled = v; }, '⛓️ Wrecking Ball');
+  wireMegaToggle('tog-laserbar', () => world.laserBar.enabled, (v) => { world.laserBar.enabled = v; }, '🚨 Laser Hurdle');
+  wireMegaToggle('tog-fountain', () => world.fountain.enabled, (v) => { world.fountain.enabled = v; }, '⛲ Candy Fountain');
+  wireMegaToggle('tog-icerink', () => world.iceRink, (v) => { world.iceRink = v; }, '⛸️ Ice Rink Floor');
+  wireMegaToggle('tog-moongrav', () => world.moonGrav, (v) => {
+    world.moonGrav = v;
+    world.gravityScale = v ? 0.25 : 1.0;
+  }, '🌕 Moon Gravity');
+  wireMegaToggle('tog-autoturret', () => world.autoTurret.enabled, (v) => { world.autoTurret.enabled = v; }, '🤖 Auto-Turret');
+  wireMegaToggle('tog-booststrips', () => world.boostStrips, (v) => { world.boostStrips = v; }, '⚡ Speed Strips');
+  wireMegaToggle('tog-theme-sunset', () => world.arenaTheme === 'sunset', (v) => {
+    world.arenaTheme = v ? 'sunset' : 'default';
+    renderer.neonMode = false;
+    document.documentElement.dataset.theme = v ? 'sunset' : 'light';
+  }, '🌅 Sunset Theme');
+  wireMegaToggle('tog-theme-space', () => world.arenaTheme === 'space', (v) => {
+    world.arenaTheme = v ? 'space' : 'default';
+    renderer.neonMode = v;
+    document.documentElement.dataset.theme = v ? 'neon' : 'light';
+  }, '🌠 Space Theme');
+
+  wireBtn('btn-king-gummy', () => {
+    world.spawnKingGummy();
+    audio.playWaveStart();
+    if (progression) progression.unlock('king_gummy');
+    showCornerToast('🐻👑 KING GUMMY MEGA-BOSS ARRIVED! Bonk or blast him!', 'gold');
+  });
+  wireBtn('btn-pinata-bear', () => {
+    world.spawnPinataBear();
+    audio.playFuseChime();
+    showCornerToast('🪅 GIANT PIÑATA BEAR! Bonk it 5 times to burst!', 'gold');
+  });
+  wireMegaToggle('tog-lavafloor', () => world.lavaFloor, (v) => {
+    world.lavaFloor = v;
+    if (v && progression) progression.unlock('lava_floor');
+  }, '🌋 Floor is Lava');
+  wireBtn('btn-meteors', () => { world.triggerMeteorShower(); audio.playBombBoom(); showCornerToast('☄️ METEOR SHOWER!', 'red'); });
+  wireBtn('btn-confetti', () => { world.fireConfettiCannon(); audio.playPinStrike(); showCornerToast('🎉 CONFETTI CANNON!', 'gold'); });
+
+  let djEnabled = false;
+  wireMegaToggle('tog-djmusic', () => djEnabled, (v) => {
+    djEnabled = v;
+    if (v) {
+      if (progression) progression.unlock('dj_rave');
+      audio.startDjMusic(() => {
+        for (const b of world.bears) {
+          if (!b.isHeld && !b.yamPinned && b.cy < 2.2) {
+            for (const n of b.nodes) n.vy += 4.2;
+          }
+        }
+      });
+    } else {
+      audio.stopDjMusic();
+    }
+  }, '🎵 DJ Rave 128BPM');
+
+  wireBtn('btn-chaos', () => world.triggerRandomChaos());
+  wireMegaToggle('tog-autoorbit', () => world.autoOrbit, (v) => { world.autoOrbit = v; }, '🎥 Auto-Orbit Cam');
+  wireMegaToggle('tog-followcam', () => world.followCam, (v) => { world.followCam = v; }, '🎯 Follow Bear Cam');
+  wireBtn('btn-lowcam', () => {
+    renderer.cam.pitch = 0.12;
+    renderer.cam.distance = 12.5;
+    renderer.updateCameraMatrices();
+    audio.playBoop(1.1);
+  });
+
+  const fpsPill = document.getElementById('fps-pill');
+  const fpsVal = document.getElementById('fps-val');
+  const bearCountVal = document.getElementById('bear-count-val');
+  let showFpsHud = false;
+  wireMegaToggle('tog-fps', () => showFpsHud, (v) => {
+    showFpsHud = v;
+    if (fpsPill) fpsPill.hidden = !v;
+  }, '📊 Live FPS HUD');
+
+  wireBtn('btn-export-save', () => {
+    if (!progression) return;
+    const code = progression.exportSave();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).catch(() => {});
+    }
+    showCornerToast('📋 Save code copied to clipboard!', 'gold');
+  });
+  wireBtn('btn-import-save', () => {
+    if (!progression) return;
+    const code = window.prompt('Paste your Gummy Bounce 3D Save Code:');
+    if (code && progression.importSave(code)) {
+      world.selectedHat = progression.data.selectedHat || 'none';
+      renderTrophiesUI();
+      showCornerToast('📥 Save imported successfully!', 'gold');
+    } else if (code) {
+      showCornerToast('❌ Invalid save code.', 'red');
+    }
+  });
 
   function setMode(mode) {
     currentMode = mode;
@@ -1228,6 +1395,38 @@
       return;
     }
 
+    if (effectiveMode === 'blackhole' || effectiveMode === 'bomb' || effectiveMode === 'clone' || effectiveMode === 'paint' || effectiveMode === 'bonk' || effectiveMode === 'bungee' || effectiveMode === 'bubble') {
+      const pt = hit ? hit.point : arenaPt;
+      if (effectiveMode === 'blackhole') {
+        world.spawnBlackHole(pt[0], Math.max(2.6, pt[1] + 2.5), pt[2]);
+      } else if (effectiveMode === 'bomb') {
+        world.dropCandyBomb(pt[0], Math.max(2.2, pt[1] + 2.2), pt[2]);
+        audio.playBoop(0.85);
+      } else if (effectiveMode === 'clone' && hit) {
+        world.cloneBear(hit.bear);
+        audio.playBoop(1.25);
+      } else if (effectiveMode === 'paint' && hit) {
+        world.paintBearRandom(hit.bear);
+        audio.playBoop(1.3);
+      } else if (effectiveMode === 'bonk' && hit) {
+        world.bonkBear(hit.bear);
+      } else if (effectiveMode === 'bungee' && hit) {
+        world.linkBungee(hit.bear);
+        audio.playBoop(1.1);
+      } else if (effectiveMode === 'bubble' && hit) {
+        world.toggleBubbleBear(hit.bear);
+        if (progression) progression.unlock('bubble_pop');
+        audio.playBoop(1.2);
+      } else {
+        audio.playBoop(0.8);
+      }
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      canvas.classList.remove('is-dragging');
+      activePointerId = null;
+      interactionKind = null;
+      return;
+    }
+
     if (effectiveMode === 'vortex' || effectiveMode === 'puff' || effectiveMode === 'cryo' || effectiveMode === 'magnet' || effectiveMode === 'heat' || effectiveMode === 'yams') {
       interactionKind = 'field';
       const pt = hit ? [hit.bear.cx, 0, hit.bear.cz] : arenaPt;
@@ -1656,9 +1855,13 @@
   }
 
   let lastFrameTime = performance.now();
+  let fpsSmooth = 60;
   function frame(now) {
     const dt = Math.max(0, (now - lastFrameTime) * 0.001);
     lastFrameTime = now;
+    if (dt > 0.001) {
+      fpsSmooth = fpsSmooth * 0.9 + (1 / dt) * 0.1;
+    }
 
     if (!document.hidden) {
       if (!photoMode) {
@@ -1678,6 +1881,10 @@
         if (world.timeAttack.active || world.boss.active || world.survival.active) {
           syncModeHuds();
         }
+      }
+      if (showFpsHud) {
+        if (fpsVal) fpsVal.textContent = String(Math.round(fpsSmooth));
+        if (bearCountVal) bearCountVal.textContent = String(world.bears.length);
       }
       renderer.render(now * 0.001);
     }
