@@ -16,7 +16,6 @@
   // 4D MATH & TESSERACT PROJECTION
   // =========================================================================
   function project4Dto3D(x, y, z, w, wCam, xwRad, zwRad) {
-    // Rotate in XW and ZW 4D planes around center (0, 3, 0, wCam)
     const dw = w - wCam;
     const cxw = Math.cos(xwRad), sxw = Math.sin(xwRad);
     const x1 = x * cxw - dw * sxw;
@@ -31,7 +30,6 @@
     return [x1 * p4, y, z2 * p4, w2, p4];
   }
 
-  // 16 vertices & 32 edges of a 4D Hypercube (Tesseract)
   const TESSERACT_VERTS = [];
   for (let i = 0; i < 16; i++) {
     TESSERACT_VERTS.push([
@@ -48,6 +46,14 @@
       if (i < j) TESSERACT_EDGES.push([i, j]);
     }
   }
+
+  const STARFIELD_4D = Array.from({ length: 48 }, () => ({
+    x: (Math.random() - 0.5) * 38,
+    y: 1.5 + Math.random() * 18,
+    z: (Math.random() - 0.5) * 32,
+    w: (Math.random() - 0.5) * 8,
+    s: 0.05 + Math.random() * 0.07
+  }));
 
   // =========================================================================
   // 4D PHYSICS WORLD (X, Y, Z, W)
@@ -82,7 +88,7 @@
         maxHp: 120,
         x: 0, z: -2.0, w: 0,
         yaw: 0,
-        targetX: 0, targetZ: 0, targetW: 0,
+        targetX: 0, targetZ: 0,
         phaseTimer: 4.5,
         hitFlash: 0,
         animTime: 0
@@ -148,6 +154,21 @@
       }
     }
 
+    getSlingshotVelocity() {
+      if (!this.slingshot) return { vx: 0, vy: 0, vz: 0, power: 0 };
+      const s = this.slingshot;
+      const dx = s.anchorX - s.pullX;
+      const dy = s.anchorY - s.pullY;
+      const dz = s.anchorZ - s.pullZ;
+      const dist = Math.hypot(dx, dy, dz);
+      return {
+        vx: dx * 5.2,
+        vy: dy * 5.2 + Math.min(7.5, dist * 1.4),
+        vz: dz * 5.2,
+        power: dist
+      };
+    }
+
     yamQuake() {
       for (const b of this.bears) {
         if (b.yamPinned) continue;
@@ -163,7 +184,7 @@
 
     wPhaseZap() {
       for (const b of this.bears) {
-        b.w = this.wCam + (Math.random() - 0.5) * 0.6;
+        b.w = this.wCam + (Math.random() - 0.5) * 0.5;
         b.vw = 0;
         b.vy += 6.5;
         b.jiggle = 1.0;
@@ -205,8 +226,9 @@
         const fld = this.activeField;
         if (fld.type === 'yams') {
           for (const b of this.bears) {
-            const d = Math.hypot(b.x - fld.x, b.y - (fld.y + 1.1), b.z - fld.z, (b.w - this.wCam) * 0.8);
-            if (d < 4.2 + b.scale) {
+            const p = project4Dto3D(b.x, b.y, b.z, b.w, this.wCam, this.xwAngle, this.zwAngle);
+            const d = Math.hypot(p[0] - fld.x, p[1] - (fld.y + 1.0), p[2] - fld.z);
+            if (d < 3.8 + b.scale) {
               b.yamPinned = true;
               b.vx = 0; b.vy = 0; b.vz = 0; b.vw = 0;
               b.yamBoost = Math.max(0, Math.min(3.2, b.yamBoost + (fld.shrink ? -1.8 : 1.8) * dt));
@@ -216,8 +238,9 @@
         } else if (fld.type === 'puff') {
           const toSplit = [];
           for (const b of this.bears) {
-            const d = Math.hypot(b.x - fld.x, b.y - (fld.y + 1.1), b.z - fld.z, (b.w - this.wCam) * 0.7);
-            if (d < 4.0 + b.scale) {
+            const p = project4Dto3D(b.x, b.y, b.z, b.w, this.wCam, this.xwAngle, this.zwAngle);
+            const d = Math.hypot(p[0] - fld.x, p[1] - (fld.y + 1.0), p[2] - fld.z);
+            if (d < 3.8 + b.scale) {
               b.scale += (fld.shrink ? -1.1 : 1.1) * dt;
               b.scale = Math.max(0.45, b.scale);
               b.jiggle = 1.0;
@@ -236,8 +259,9 @@
           }
         } else if (fld.type === 'cryo') {
           for (const b of this.bears) {
-            const d = Math.hypot(b.x - fld.x, b.y - (fld.y + 1.1), b.z - fld.z, (b.w - this.wCam) * 0.7);
-            if (d < 4.0 + b.scale) b.frozen = Math.min(1, b.frozen + dt * 2.5);
+            const p = project4Dto3D(b.x, b.y, b.z, b.w, this.wCam, this.xwAngle, this.zwAngle);
+            const d = Math.hypot(p[0] - fld.x, p[1] - (fld.y + 1.0), p[2] - fld.z);
+            if (d < 3.8 + b.scale) b.frozen = Math.min(1, b.frozen + dt * 2.5);
           }
         } else if (fld.type === 'vortex') {
           for (const b of this.bears) {
@@ -246,7 +270,7 @@
             const dz = fld.z - b.z;
             const dw = this.wCam - b.w;
             const d = Math.hypot(dx, dz, dw);
-            if (d < 9.0) {
+            if (d < 9.5) {
               b.vx += (dx * 5 - dz * 12) * dt;
               b.vz += (dz * 5 + dx * 12) * dt;
               b.vw += dw * 6 * dt;
@@ -336,11 +360,21 @@
       for (const b of this.bears) {
         b.jiggle = Math.max(0, b.jiggle - dt * 2.4);
         b.ripple = Math.max(0, b.ripple - dt * 2.2);
-        if (b.yamPinned || (this.grab && this.grab.bear === b) || (this.slingshot && this.slingshot.bear === b)) {
+
+        if (this.slingshot && this.slingshot.bear === b) {
+          b.x = this.slingshot.pullX;
+          b.y = this.slingshot.pullY;
+          b.z = this.slingshot.pullZ;
+          b.w += (this.wCam - b.w) * Math.min(1, dt * 12);
+          b.vx = 0; b.vy = 0; b.vz = 0;
+          continue;
+        }
+
+        if (b.yamPinned || (this.grab && this.grab.bear === b)) {
           if (this.grab && this.grab.bear === b) {
-            b.x += (this.grab.x - b.x) * Math.min(1, dt * 18);
-            b.y += (this.grab.y - b.y) * Math.min(1, dt * 18);
-            b.z += (this.grab.z - b.z) * Math.min(1, dt * 18);
+            b.x += (this.grab.x - b.x) * Math.min(1, dt * 22);
+            b.y += (this.grab.y - b.y) * Math.min(1, dt * 22);
+            b.z += (this.grab.z - b.z) * Math.min(1, dt * 22);
             b.w += (this.wCam - b.w) * Math.min(1, dt * 10);
           }
           continue;
@@ -359,7 +393,6 @@
         b.vrx *= 0.98; b.vry *= 0.98; b.vrz *= 0.98;
 
         const pad = 0.9 * b.scale;
-        // Floor + 4D Hyper-Trampoline
         if (b.y < pad) {
           b.y = pad;
           const imp = -b.vy;
@@ -384,7 +417,6 @@
           if (b.vy > 0) b.vy = -b.vy * this.bounciness;
         }
 
-        // X, Z, W 4D Hypercube wall bounces
         if (b.x < -this.bounds.x + pad) { b.x = -this.bounds.x + pad; b.vx = Math.abs(b.vx) * this.bounciness; }
         if (b.x > this.bounds.x - pad) { b.x = this.bounds.x - pad; b.vx = -Math.abs(b.vx) * this.bounciness; }
         if (b.z < -this.bounds.z + pad) { b.z = -this.bounds.z + pad; b.vz = Math.abs(b.vz) * this.bounciness; }
@@ -392,7 +424,6 @@
         if (b.w < -this.bounds.w) { b.w = -this.bounds.w; b.vw = Math.abs(b.vw) * 0.92; }
         if (b.w > this.bounds.w) { b.w = this.bounds.w; b.vw = -Math.abs(b.vw) * 0.92; }
 
-        // 4D Golden Hyper-Hoop scoring
         if (nowSec - b.lastHoop > 0.75) {
           for (const h of this.hoops) {
             const crossedZ = (prevZ - h.z) * (b.z - h.z) <= 0;
@@ -411,7 +442,6 @@
         }
       }
 
-      // Particles & shockwaves
       for (let i = this.particles.length - 1; i >= 0; i--) {
         const p = this.particles[i];
         p.vy += -14 * dt;
@@ -430,7 +460,7 @@
   }
 
   // =========================================================================
-  // 4D WEBGL2 RENDERER
+  // 4D WEBGL2 RENDERER WITH FULL RAYCASTING
   // =========================================================================
   const VS_4D = `#version 300 es
   precision highp float;
@@ -510,7 +540,6 @@
       core = mix(core, vec3(0.9, 0.98, 1.0), uFrozen * 0.8);
     }
 
-    // 4D W-Dimension Phase Tint (Cyan for -W, Magenta-Gold for +W)
     float wMag = clamp(abs(uWDelta) / 4.0, 0.0, 1.0);
     vec3 wTint = uWDelta < 0.0 ? vec3(0.10, 0.88, 1.0) : vec3(1.0, 0.25, 0.82);
 
@@ -569,6 +598,37 @@
     }
   }
 
+  function mat4Invert(out, m) {
+    const a00 = m[0], a01 = m[1], a02 = m[2], a03 = m[3];
+    const a10 = m[4], a11 = m[5], a12 = m[6], a13 = m[7];
+    const a20 = m[8], a21 = m[9], a22 = m[10], a23 = m[11];
+    const a30 = m[12], a31 = m[13], a32 = m[14], a33 = m[15];
+    const b00 = a00 * a11 - a01 * a10, b01 = a00 * a12 - a02 * a10, b02 = a00 * a13 - a03 * a10;
+    const b03 = a01 * a12 - a02 * a11, b04 = a01 * a13 - a03 * a11, b05 = a02 * a13 - a03 * a12;
+    const b06 = a20 * a31 - a21 * a30, b07 = a20 * a32 - a22 * a30, b08 = a20 * a33 - a23 * a30;
+    const b09 = a21 * a32 - a22 * a31, b10 = a21 * a33 - a23 * a31, b11 = a22 * a33 - a23 * a32;
+    let det = b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06;
+    if (!det) return out;
+    det = 1.0 / det;
+    out[0] = (a11 * b11 - a12 * b10 + a13 * b09) * det;
+    out[1] = (a02 * b10 - a01 * b11 - a03 * b09) * det;
+    out[2] = (a31 * b05 - a32 * b04 + a33 * b03) * det;
+    out[3] = (a22 * b04 - a21 * b05 - a23 * b03) * det;
+    out[4] = (a12 * b08 - a10 * b11 - a13 * b07) * det;
+    out[5] = (a00 * b11 - a02 * b08 + a03 * b07) * det;
+    out[6] = (a32 * b02 - a30 * b05 - a33 * b01) * det;
+    out[7] = (a20 * b05 - a22 * b02 + a23 * b01) * det;
+    out[8] = (a10 * b10 - a11 * b08 + a13 * b06) * det;
+    out[9] = (a01 * b08 - a00 * b10 - a03 * b06) * det;
+    out[10] = (a30 * b04 - a31 * b02 + a33 * b00) * det;
+    out[11] = (a21 * b02 - a20 * b04 - a23 * b00) * det;
+    out[12] = (a11 * b07 - a10 * b09 - a12 * b06) * det;
+    out[13] = (a00 * b09 - a01 * b07 + a02 * b06) * det;
+    out[14] = (a31 * b01 - a30 * b03 - a32 * b00) * det;
+    out[15] = (a20 * b03 - a21 * b01 + a22 * b00) * det;
+    return out;
+  }
+
   function mat4TRS(out, tx, ty, tz, rx, ry, rz, sx, sy, sz) {
     const cx = Math.cos(rx), sxr = Math.sin(rx);
     const cy = Math.cos(ry), syr = Math.sin(ry);
@@ -616,6 +676,7 @@
       this.proj = new Float32Array(16);
       this.view = new Float32Array(16);
       this.vp = new Float32Array(16);
+      this.invVp = new Float32Array(16);
       this.model = new Float32Array(16);
 
       const prog = gl.createProgram();
@@ -676,6 +737,86 @@
         this.canvas.height = h;
       }
       this.aspect = w / h;
+      this.updateMatrices();
+    }
+
+    updateMatrices() {
+      const cp = Math.cos(this.cam.pitch);
+      this.cam.eye[0] = this.cam.target[0] + Math.sin(this.cam.yaw) * cp * this.cam.distance;
+      this.cam.eye[1] = this.cam.target[1] + Math.sin(this.cam.pitch) * this.cam.distance;
+      this.cam.eye[2] = this.cam.target[2] + Math.cos(this.cam.yaw) * cp * this.cam.distance;
+      mat4Perspective(this.proj, (46 * Math.PI) / 180, this.aspect || 1.5, 0.25, 110);
+      mat4LookAt(this.view, this.cam.eye, this.cam.target, [0, 1, 0]);
+      mat4Mul(this.vp, this.proj, this.view);
+      mat4Invert(this.invVp, this.vp);
+    }
+
+    screenToRay(clientX, clientY) {
+      const rect = this.canvas.getBoundingClientRect();
+      const ndcX = ((clientX - rect.left) / rect.width) * 2 - 1;
+      const ndcY = 1 - ((clientY - rect.top) / rect.height) * 2;
+      const inv = this.invVp;
+      const unproj = (z) => {
+        const x = inv[0] * ndcX + inv[4] * ndcY + inv[8] * z + inv[12];
+        const y = inv[1] * ndcX + inv[5] * ndcY + inv[9] * z + inv[13];
+        const pz = inv[2] * ndcX + inv[6] * ndcY + inv[10] * z + inv[14];
+        const w = inv[3] * ndcX + inv[7] * ndcY + inv[11] * z + inv[15] || 1;
+        return [x / w, y / w, pz / w];
+      };
+      const nearPt = unproj(-1);
+      const farPt = unproj(1);
+      const dx = farPt[0] - nearPt[0], dy = farPt[1] - nearPt[1], dz = farPt[2] - nearPt[2];
+      const len = Math.hypot(dx, dy, dz) || 1;
+      return { orig: nearPt, dir: [dx / len, dy / len, dz / len] };
+    }
+
+    raycastArena(orig, dir) {
+      if (Math.abs(dir[1]) > 1e-4) {
+        const t = (0.3 - orig[1]) / dir[1];
+        if (t > 0 && t < 60) {
+          return [
+            Math.max(-9.8, Math.min(9.8, orig[0] + dir[0] * t)),
+            0.3,
+            Math.max(-7.5, Math.min(7.5, orig[2] + dir[2] * t))
+          ];
+        }
+      }
+      return [0, 0.5, 0];
+    }
+
+    raycast4DBears(orig, dir) {
+      const w = this.world;
+      let best = null;
+      let bestDist = Infinity;
+      for (const b of w.bears) {
+        const p = project4Dto3D(b.x, b.y, b.z, b.w, w.wCam, w.xwAngle, w.zwAngle);
+        const ocx = p[0] - orig[0], ocy = p[1] - orig[1], ocz = p[2] - orig[2];
+        const t = ocx * dir[0] + ocy * dir[1] + ocz * dir[2];
+        if (t < 0) continue;
+        const px = orig[0] + dir[0] * t, py = orig[1] + dir[1] * t, pz = orig[2] + dir[2] * t;
+        const dist = Math.hypot(px - p[0], py - p[1], pz - p[2]);
+        const rad = 1.45 * b.scale * p[4];
+        if (dist < rad && t < bestDist) {
+          bestDist = t;
+          best = { bear: b, point: [p[0], p[1], p[2]] };
+        }
+      }
+      return best;
+    }
+
+    projectOntoCameraPlane(clientX, clientY, refPoint) {
+      const { orig, dir } = this.screenToRay(clientX, clientY);
+      const fwdX = this.cam.target[0] - this.cam.eye[0];
+      const fwdY = this.cam.target[1] - this.cam.eye[1];
+      const fwdZ = this.cam.target[2] - this.cam.eye[2];
+      const denom = dir[0] * fwdX + dir[1] * fwdY + dir[2] * fwdZ;
+      if (Math.abs(denom) < 1e-5) return [...refPoint];
+      const t = ((refPoint[0] - orig[0]) * fwdX + (refPoint[1] - orig[1]) * fwdY + (refPoint[2] - orig[2]) * fwdZ) / denom;
+      return [
+        Math.max(-10, Math.min(10, orig[0] + dir[0] * t)),
+        Math.max(0.5, Math.min(14, orig[1] + dir[1] * t)),
+        Math.max(-7.5, Math.min(7.5, orig[2] + dir[2] * t))
+      ];
     }
 
     drawObj(v, col, core, alpha = 1.0, frozen = 0, wDelta = 0, yam = 0, ripple = 0) {
@@ -695,16 +836,10 @@
     render(timeSec) {
       const gl = this.gl;
       const w = this.world;
-      const cp = Math.cos(this.cam.pitch);
-      this.cam.eye[0] = this.cam.target[0] + Math.sin(this.cam.yaw) * cp * this.cam.distance;
-      this.cam.eye[1] = this.cam.target[1] + Math.sin(this.cam.pitch) * this.cam.distance;
-      this.cam.eye[2] = this.cam.target[2] + Math.cos(this.cam.yaw) * cp * this.cam.distance;
-      mat4Perspective(this.proj, (46 * Math.PI) / 180, this.aspect || 1.5, 0.25, 110);
-      mat4LookAt(this.view, this.cam.eye, this.cam.target, [0, 1, 0]);
-      mat4Mul(this.vp, this.proj, this.view);
+      this.updateMatrices();
 
       gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-      gl.clearColor(0.035, 0.015, 0.095, 1.0);
+      gl.clearColor(0.025, 0.012, 0.075, 1.0);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       gl.enable(gl.DEPTH_TEST);
       gl.enable(gl.BLEND);
@@ -715,11 +850,27 @@
       gl.uniform3fv(this.locs.uCamPos, this.cam.eye);
       gl.uniform1f(this.locs.uTime, timeSec);
 
-      // 1. Floor Pad
+      // 1. Quantum Floor Pad + Glowing Grid Lines
       mat4TRS(this.model, 0, -0.05, 0, 0, 0, 0, 22, 0.1, 17);
-      this.drawObj(this.cylVAO, [0.10, 0.06, 0.22], [0.24, 0.14, 0.45], 0.92);
+      this.drawObj(this.cylVAO, [0.06, 0.03, 0.16], [0.16, 0.08, 0.34], 0.94);
 
-      // 2. 4D Tesseract Hypercube Wireframe (16 vertices, 32 edges projected from 4D!)
+      for (let gx = -10; gx <= 10; gx += 5) {
+        mat4Align(this.model, gx, 0.02, -8, gx, 0.02, 8, 0.028);
+        this.drawObj(this.cylVAO, [0.12, 0.72, 0.96], [0.5, 0.9, 1.0], 0.28);
+      }
+      for (let gz = -8; gz <= 8; gz += 4) {
+        mat4Align(this.model, -10.5, 0.02, gz, 10.5, 0.02, gz, 0.028);
+        this.drawObj(this.cylVAO, [0.68, 0.28, 0.98], [0.9, 0.6, 1.0], 0.28);
+      }
+
+      // 1b. 4D Starfield Background
+      for (const st of STARFIELD_4D) {
+        const sp = project4Dto3D(st.x, st.y, st.z, st.w, w.wCam, w.xwAngle * 0.3, w.zwAngle * 0.3);
+        mat4TRS(this.model, sp[0], sp[1], sp[2], 0, 0, 0, st.s * sp[4], st.s * sp[4], st.s * sp[4]);
+        this.drawObj(this.sphereVAO, [0.55, 0.92, 1.0], [1, 1, 1], 0.65);
+      }
+
+      // 2. 4D Tesseract Hypercube Wireframe + Pulsing Corner Nodes
       const projVerts = TESSERACT_VERTS.map(([vx, vy, vz, vw]) =>
         project4Dto3D(vx * 9.5, 5.8 + vy * 5.2, vz * 7.2, vw * 4.5, w.wCam, w.xwAngle, w.zwAngle)
       );
@@ -727,6 +878,11 @@
         const a = projVerts[i], b = projVerts[j];
         mat4Align(this.model, a[0], a[1], a[2], b[0], b[1], b[2], 0.045);
         this.drawObj(this.cylVAO, [0.16, 0.85, 1.0], [0.68, 0.35, 1.0], 0.45);
+      }
+      for (const pv of projVerts) {
+        const nr = 0.14 * pv[4];
+        mat4TRS(this.model, pv[0], pv[1], pv[2], 0, 0, 0, nr, nr, nr);
+        this.drawObj(this.sphereVAO, [0.95, 0.42, 0.96], [1, 1, 1], 0.72);
       }
 
       // 3. 4D Hyper-Trampoline & Hoops
@@ -764,7 +920,7 @@
         this.drawObj(this.ringVAO, [0.2, 0.92, 1.0], [0.9, 0.4, 1.0], 0.9);
       }
 
-      // 6. 4D Gummy Bears (sorted back-to-front by W-distance + Z)
+      // 6. 4D Gummy Bears
       const sorted = [...w.bears].sort((a, b) => Math.abs(b.w - w.wCam) - Math.abs(a.w - w.wCam));
       for (const b of sorted) {
         const p = project4Dto3D(b.x, b.y, b.z, b.w, w.wCam, w.xwAngle, w.zwAngle);
@@ -775,7 +931,52 @@
         this.drawObj(this.bearVAO, b.flavor.rgb, b.flavor.core, wAlpha, b.frozen, wDelta, b.yamBoost, b.ripple);
       }
 
-      // 7. 4D Shockwaves & Particles
+      // 7. Interactive 4D Tool Visuals (Grab tether, Slingshot bands + arc, Active Field Rings!)
+      if (w.grab) {
+        const g = w.grab;
+        const p = project4Dto3D(g.bear.x, g.bear.y, g.bear.z, g.bear.w, w.wCam, w.xwAngle, w.zwAngle);
+        mat4Align(this.model, p[0], p[1], p[2], g.x, g.y, g.z, 0.06);
+        this.drawObj(this.cylVAO, [0.2, 0.95, 1.0], [1, 1, 1], 0.9);
+      }
+
+      if (w.slingshot) {
+        const s = w.slingshot;
+        mat4Align(this.model, s.anchorX - 0.5, s.anchorY, s.anchorZ, s.pullX, s.pullY, s.pullZ, 0.06);
+        this.drawObj(this.cylVAO, [1, 0.4, 0.8], [1, 1, 1], 0.9);
+        mat4Align(this.model, s.anchorX + 0.5, s.anchorY, s.anchorZ, s.pullX, s.pullY, s.pullZ, 0.06);
+        this.drawObj(this.cylVAO, [1, 0.4, 0.8], [1, 1, 1], 0.9);
+        const { vx, vy, vz, power } = w.getSlingshotVelocity();
+        if (power > 0.1) {
+          for (let i = 1; i <= 16; i++) {
+            const t = i * 0.055;
+            const px = s.pullX + vx * t;
+            const py = s.pullY + vy * t + 0.5 * w.gravity * t * t;
+            const pz = s.pullZ + vz * t;
+            if (py < 0.05) break;
+            const rad = 0.14 * (1 - i / 22);
+            mat4TRS(this.model, px, py, pz, 0, 0, 0, rad, rad, rad);
+            this.drawObj(this.sphereVAO, [0.25, 0.92, 1.0], [1, 1, 1], 0.88 - i * 0.04);
+          }
+        }
+      }
+
+      if (w.activeField) {
+        const fld = w.activeField;
+        const cols = {
+          vortex: [1.0, 0.38, 0.88],
+          puff: fld.shrink ? [1.0, 0.55, 0.12] : [0.22, 0.95, 0.58],
+          cryo: [0.35, 0.90, 1.0],
+          yams: fld.shrink ? [0.55, 0.35, 0.95] : [0.98, 0.52, 0.14]
+        };
+        const col = cols[fld.type] || [1, 1, 1];
+        const r = 2.3 + Math.sin(timeSec * 12) * 0.22;
+        mat4TRS(this.model, fld.x, 0.16, fld.z, Math.PI * 0.5, timeSec * 3, 0, r, r, r);
+        this.drawObj(this.ringVAO, col, [1, 1, 1], 0.92);
+        mat4Align(this.model, fld.x, 0.15, fld.z, fld.x, 7.5, fld.z, 0.16);
+        this.drawObj(this.cylVAO, col, [1, 1, 1], 0.38);
+      }
+
+      // 8. 4D Shockwaves & Particles
       for (const sw of w.shockwaves) {
         const sp = project4Dto3D(sw.x, sw.y, sw.z, sw.w, w.wCam, w.xwAngle, w.zwAngle);
         mat4TRS(this.model, sp[0], sp[1], sp[2], Math.PI * 0.5, 0, 0, sw.r * sp[4], sw.r * sp[4], sw.r * sp[4]);
@@ -809,11 +1010,27 @@
   const sliderZW = document.getElementById('slider-zw');
   const zwLbl = document.getElementById('zw-lbl');
   const chkAuto = document.getElementById('chk-auto-4d');
+  const wRadar = document.getElementById('w-radar');
+  const wRadarCam = document.getElementById('w-radar-cam');
   const bossHud = document.getElementById('boss-4d-hud');
   const bossFill = document.getElementById('boss-4d-fill');
   const bossHp = document.getElementById('boss-4d-hp');
   const bossW = document.getElementById('boss-w-val');
   const toastEl = document.getElementById('toast-4d');
+  const hintEl = document.getElementById('hint-4d');
+
+  const HINTS_4D = {
+    grab: '<strong>1 · 4D Grab:</strong> Drag any bear to toss it! Use <kbd>Q</kbd>/<kbd>E</kbd> to phase-shift W-Slices.',
+    slingshot: '<strong>2 · 4D Slingshot:</strong> Pull back on any bear (or empty floor) to aim the 4D arc &amp; release to launch!',
+    wave: '<strong>3 · 4D Wave:</strong> Click anywhere to blast a 4D Hypersphere Shockwave!',
+    vortex: '<strong>4 · 4D Vortex:</strong> Hold &amp; drag to steer a 4D cotton-candy tornado across dimensions!',
+    blaster: '<strong>5 · 4D Blaster:</strong> Hold to rapid-fire 4D gummy bears right at your cursor!',
+    puff: '<strong>6 · 4D Puff:</strong> Hold on bears to inflate until they POP into 3 mini bears! (<kbd>Shift</kbd> to shrink)',
+    cryo: '<strong>7 · 4D Cryo:</strong> Hold on bears to freeze them into 4D Ice Statues!',
+    yams: '<strong>8 · 4D Yams Ray:</strong> Hold on bears to pin them still &amp; pump up their 4D cheeks! (<kbd>Shift</kbd> to deflate)',
+    blackhole: '<strong>9 · 4D Singularity:</strong> Click anywhere to spawn a swirling 4D Black Hole!',
+    wzap: '<strong>0 · W-Zap:</strong> Pulls every bear from all other W-slices into your current 4D slice!'
+  };
 
   let toastTimer = null;
   function showToast(msg) {
@@ -834,6 +1051,7 @@
       bossHp.textContent = `${world.boss.hp} / ${world.boss.maxHp}`;
       bossW.textContent = world.boss.w.toFixed(1);
     }
+    if (typeof updateRadar === 'function') updateRadar();
   };
 
   function setWSlice(val) {
@@ -846,6 +1064,7 @@
   function setMode(mode) {
     currentMode = mode;
     document.querySelectorAll('.tool-btn').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    if (hintEl && HINTS_4D[mode]) hintEl.innerHTML = HINTS_4D[mode];
   }
 
   document.querySelectorAll('.tool-btn').forEach((b) => b.addEventListener('click', () => {
@@ -896,44 +1115,40 @@
     audio.playBoop(1.0);
   });
 
-  // Pointer Controls (Orbit + 4D Tools)
+  // Pointer Controls (True 3D Raycasting + 4D Tools)
   let dragging = false, orbiting = false, px = 0, py = 0, blasterOn = false, lastShot = 0;
-  function screenToFloor(cx, cy) {
-    const r = canvas.getBoundingClientRect();
-    const nx = ((cx - r.left) / r.width) * 2 - 1;
-    const ny = 1 - ((cy - r.top) / r.height) * 2;
-    return [nx * 9.5, Math.max(0.5, ny * 6 + 4), -ny * 4];
-  }
-  function findBearNear(pt) {
-    let best = null, bestD = 3.2;
-    for (const b of world.bears) {
-      const p = project4Dto3D(b.x, b.y, b.z, b.w, world.wCam, world.xwAngle, world.zwAngle);
-      const d = Math.hypot(p[0] - pt[0], p[1] - pt[1], p[2] - pt[2]);
-      if (d < bestD) { bestD = d; best = b; }
-    }
-    return best;
-  }
+  let grabRef = [0, 2, 0], flingVel = [0, 0, 0], lastMove = 0, aimPt = [0, 1, 0];
 
   canvas.addEventListener('contextmenu', (e) => e.preventDefault());
   canvas.addEventListener('pointerdown', (e) => {
-    dragging = true; px = e.clientX; py = e.clientY;
+    dragging = true; px = e.clientX; py = e.clientY; lastMove = performance.now();
+    flingVel = [0, 0, 0];
     canvas.setPointerCapture(e.pointerId);
     if (e.button === 1 || e.button === 2 || e.altKey) { orbiting = true; return; }
     orbiting = false;
-    const pt = screenToFloor(e.clientX, e.clientY);
-    const hit = findBearNear(pt);
+
+    const { orig, dir } = renderer.screenToRay(e.clientX, e.clientY);
+    const hit = renderer.raycast4DBears(orig, dir);
+    const arenaPt = renderer.raycastArena(orig, dir);
+    aimPt = hit ? hit.point : arenaPt;
 
     if (currentMode === 'grab') {
-      if (hit) world.grab = { bear: hit, x: pt[0], y: pt[1], z: pt[2] };
-      else orbiting = true;
+      if (hit) {
+        grabRef = [...hit.point];
+        world.grab = { bear: hit.bear, x: hit.point[0], y: hit.point[1], z: hit.point[2] };
+        audio.playBoop(1.1);
+      } else {
+        orbiting = true;
+      }
     } else if (currentMode === 'slingshot') {
-      const b = hit || world.spawnBear(pt[0], pt[1], pt[2], world.wCam);
-      b.vx = -pt[0] * 1.6; b.vy = 11.5; b.vz = -pt[2] * 1.6 - 5; b.vw = (Math.random() - 0.5) * 6;
-      audio.playLaunch(1.0);
+      const b = hit ? hit.bear : world.spawnBear(arenaPt[0], 2.2, arenaPt[2], world.wCam);
+      grabRef = [b.x, b.y, b.z];
+      world.slingshot = { bear: b, anchorX: b.x, anchorY: b.y, anchorZ: b.z, pullX: b.x, pullY: b.y, pullZ: b.z };
+      audio.playBoop(1.05);
     } else if (currentMode === 'wave') {
-      world.shockwaves.push({ x: pt[0], y: 0.3, z: pt[2], w: world.wCam, r: 0.5, maxR: 8.5, alpha: 0.95 });
+      world.shockwaves.push({ x: aimPt[0], y: 0.3, z: aimPt[2], w: world.wCam, r: 0.5, maxR: 8.5, alpha: 0.95 });
       for (const b of world.bears) {
-        if (Math.hypot(b.x - pt[0], b.z - pt[2], b.w - world.wCam) < 7.5) {
+        if (Math.hypot(b.x - aimPt[0], b.z - aimPt[2], b.w - world.wCam) < 7.5) {
           b.vy += 10.5; b.jiggle = 1.0; b.ripple = 1.0;
         }
       }
@@ -941,35 +1156,70 @@
     } else if (currentMode === 'blaster') {
       blasterOn = true;
     } else if (currentMode === 'blackhole') {
-      world.blackHoles.push({ x: pt[0], y: Math.max(2.5, pt[1]), z: pt[2], w: world.wCam, life: 4.5 });
+      world.blackHoles.push({ x: aimPt[0], y: Math.max(2.5, aimPt[1] + 2.0), z: aimPt[2], w: world.wCam, life: 4.5 });
       audio.playBlackHole();
     } else if (currentMode === 'vortex' || currentMode === 'puff' || currentMode === 'cryo' || currentMode === 'yams') {
-      world.activeField = { type: currentMode, x: pt[0], y: 0, z: pt[2], shrink: e.shiftKey };
+      world.activeField = { type: currentMode, x: aimPt[0], y: 0, z: aimPt[2], shrink: e.shiftKey };
       audio.playBeamPulse(currentMode === 'yams' ? 'puff' : currentMode);
     }
   });
 
   canvas.addEventListener('pointermove', (e) => {
     if (!dragging) return;
+    const now = performance.now();
+    const dtSec = Math.max(0.005, (now - lastMove) * 0.001);
     const dx = e.clientX - px, dy = e.clientY - py;
-    px = e.clientX; py = e.clientY;
+    px = e.clientX; py = e.clientY; lastMove = now;
+
     if (orbiting) {
       renderer.cam.yaw -= dx * 0.007;
       renderer.cam.pitch = Math.max(0.08, Math.min(1.25, renderer.cam.pitch + dy * 0.006));
       return;
     }
-    const pt = screenToFloor(e.clientX, e.clientY);
+
+    const { orig, dir } = renderer.screenToRay(e.clientX, e.clientY);
+    aimPt = renderer.raycastArena(orig, dir);
+
     if (world.grab) {
-      world.grab.x = pt[0]; world.grab.y = pt[1]; world.grab.z = pt[2];
+      const nextPt = renderer.projectOntoCameraPlane(e.clientX, e.clientY, grabRef);
+      flingVel[0] = flingVel[0] * 0.5 + ((nextPt[0] - world.grab.x) / dtSec) * 0.5;
+      flingVel[1] = flingVel[1] * 0.5 + ((nextPt[1] - world.grab.y) / dtSec) * 0.5;
+      flingVel[2] = flingVel[2] * 0.5 + ((nextPt[2] - world.grab.z) / dtSec) * 0.5;
+      world.grab.x = nextPt[0]; world.grab.y = nextPt[1]; world.grab.z = nextPt[2];
+      grabRef = nextPt;
+    }
+    if (world.slingshot) {
+      const nextPt = renderer.projectOntoCameraPlane(e.clientX, e.clientY, grabRef);
+      const s = world.slingshot;
+      let pxp = nextPt[0] - s.anchorX, pyp = nextPt[1] - s.anchorY, pzp = nextPt[2] - s.anchorZ;
+      const d = Math.hypot(pxp, pyp, pzp);
+      if (d > 4.5) { pxp *= 4.5 / d; pyp *= 4.5 / d; pzp *= 4.5 / d; }
+      s.pullX = s.anchorX + pxp; s.pullY = Math.max(0.6, s.anchorY + pyp); s.pullZ = s.anchorZ + pzp;
     }
     if (world.activeField) {
-      world.activeField.x = pt[0]; world.activeField.z = pt[2];
+      world.activeField.x = aimPt[0]; world.activeField.z = aimPt[2];
     }
   });
 
   const endPtr = () => {
+    if (world.grab) {
+      const b = world.grab.bear;
+      b.vx = Math.max(-24, Math.min(24, flingVel[0]));
+      b.vy = Math.max(-18, Math.min(24, flingVel[1]));
+      b.vz = Math.max(-24, Math.min(24, flingVel[2]));
+      world.grab = null;
+    }
+    if (world.slingshot) {
+      const { vx, vy, vz, power } = world.getSlingshotVelocity();
+      if (power > 0.1) {
+        const b = world.slingshot.bear;
+        b.vx = vx; b.vy = vy; b.vz = vz; b.vw = (Math.random() - 0.5) * 4;
+        audio.playLaunch(Math.min(1.2, power * 0.3));
+      }
+      world.slingshot = null;
+    }
     dragging = false; orbiting = false; blasterOn = false;
-    world.grab = null; world.activeField = null;
+    world.activeField = null;
   };
   canvas.addEventListener('pointerup', endPtr);
   canvas.addEventListener('pointercancel', endPtr);
@@ -978,10 +1228,10 @@
     renderer.cam.distance = Math.max(9, Math.min(32, renderer.cam.distance + e.deltaY * 0.012));
   }, { passive: false });
 
-  // Keyboard shortcuts
   const KEYS = { '1': 'grab', '2': 'slingshot', '3': 'wave', '4': 'vortex', '5': 'blaster', '6': 'puff', '7': 'cryo', '8': 'yams', '9': 'blackhole' };
   window.addEventListener('keydown', (e) => {
     if (KEYS[e.key]) { setMode(KEYS[e.key]); audio.playBoop(1.05); }
+    else if (e.key === '0') { world.wPhaseZap(); audio.playPortalWhoosh(); showToast('⚡ W-Zap!'); }
     else if (e.key === 'q' || e.key === 'Q') setWSlice(world.wCam - 0.5);
     else if (e.key === 'e' || e.key === 'E') setWSlice(world.wCam + 0.5);
     else if (e.key === 'y' || e.key === 'Y') { world.yamQuake(); audio.playYamBoing(); }
@@ -993,18 +1243,39 @@
   window.addEventListener('resize', () => renderer.syncSize());
   renderer.syncSize();
 
+  function updateRadar() {
+    if (!wRadar || !wRadarCam) return;
+    wRadarCam.style.left = `${((world.wCam + 5) / 10) * 100}%`;
+    wRadar.querySelectorAll('.w-radar-dot').forEach((d) => d.remove());
+    for (const b of world.bears) {
+      const dot = document.createElement('div');
+      dot.className = 'w-radar-dot';
+      dot.style.left = `${((b.w + 5) / 10) * 100}%`;
+      wRadar.append(dot);
+    }
+    if (world.boss.active) {
+      const bd = document.createElement('div');
+      bd.className = 'w-radar-dot boss';
+      bd.style.left = `${((world.boss.w + 5) / 10) * 100}%`;
+      wRadar.append(bd);
+    }
+  }
+
   let last = performance.now();
   function loop(now) {
     const dt = (now - last) * 0.001;
     last = now;
     if (blasterOn && now - lastShot > 135) {
       lastShot = now;
-      const b = world.spawnBear(0, 4, 8, world.wCam + (Math.random() - 0.5) * 2.5);
-      b.vx = (Math.random() - 0.5) * 8; b.vy = 8; b.vz = -18;
+      const b = world.spawnBear(renderer.cam.eye[0] * 0.3, 4.5, renderer.cam.eye[2] * 0.4, world.wCam + (Math.random() - 0.5) * 1.6);
+      const dx = aimPt[0] - b.x, dy = 2.0 - b.y, dz = aimPt[2] - b.z;
+      const d = Math.hypot(dx, dy, dz) || 1;
+      b.vx = (dx / d) * 20; b.vy = (dy / d) * 20 + 4; b.vz = (dz / d) * 20;
       audio.playGatlingPop();
     }
     world.step(dt);
     if (bearsEl) bearsEl.textContent = String(world.bears.length);
+    updateRadar();
     renderer.render(now * 0.001);
     requestAnimationFrame(loop);
   }
