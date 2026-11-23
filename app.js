@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const { PhysicsWorld3D, GummyRenderer3D, audio } = window.GummyApp;
+  const { PhysicsWorld3D, GummyRenderer3D, audio, progression, ACHIEVEMENTS, HATS } = window.GummyApp;
 
   const canvas = document.getElementById('gummy-canvas');
   const announcer = document.getElementById('sr-announcer');
@@ -19,11 +19,24 @@
   const hardcoreHud = document.getElementById('hardcore-hud');
   const repelledCountEl = document.getElementById('repelled-count');
   const yellowGiftCountEl = document.getElementById('yellow-gift-count');
+  const bossHud = document.getElementById('boss-hud');
+  const bossHpFill = document.getElementById('boss-hp-fill');
+  const bossHpText = document.getElementById('boss-hp-text');
+  const taHud = document.getElementById('timeattack-hud');
+  const taTimerEl = document.getElementById('ta-timer');
+  const taScoreEl = document.getElementById('ta-score');
+  const taBestEl = document.getElementById('ta-best');
+  const survHud = document.getElementById('survival-hud');
+  const survWaveEl = document.getElementById('surv-wave');
+  const survRepelledEl = document.getElementById('surv-repelled');
+  const photoHud = document.getElementById('photo-hud');
+  const btnPhotoMode = document.getElementById('btn-photo-mode');
   const victoryDialog = document.getElementById('victory-dialog');
   const victorySummary = document.getElementById('victory-summary');
   let awaitingPurpleTarget = false;
   let repelledCount = 0;
   let yellowGiftCount = 0;
+  let photoMode = false;
 
   // 1. Toolbar Accessibility: Interest Invoker Tooltip Upgrade + Focusgroup Fallback
   function wireToolbarAccessibility() {
@@ -97,6 +110,9 @@
 
   const world = new PhysicsWorld3D();
   const renderer = new GummyRenderer3D(canvas, world);
+  if (progression) {
+    world.selectedHat = progression.data.selectedHat || 'none';
+  }
 
   let currentMode = 'grab';
   let selectedFlavor = 'random';
@@ -110,7 +126,18 @@
     gatling: '<strong>5 · 3D Gummy Blaster:</strong> Hold down the pointer to rapid-fire high-speed 3D gummy bears right at your target!',
     puff: '<strong>6 · Puff / Shrink Ray:</strong> Hold on bears to inflate Giant Jumbo Chonks until they <strong>POP</strong> into 3 mini bears! Hold <kbd>Shift</kbd> to shrink.',
     cryo: '<strong>7 · Cryo Freeze Ray:</strong> Sweep to freeze bears into sliding Ice-Candy Statues — click or slam a frozen bear to shatter the ice!',
-    magnet: '<strong>8 · 3D Magnet Orb:</strong> Hold to clump bears into a floating 3D Gummy Katamari ball, then release for a <strong>Supernova Launch</strong>!'
+    magnet: '<strong>8 · 3D Magnet Orb:</strong> Hold to clump bears into a floating 3D Gummy Katamari ball, then release for a <strong>Supernova Launch</strong>!',
+    fuse: '<strong>9 · Sticky Glue &amp; Fusion:</strong> Click near 2+ bears to fuse them into a Giant <strong>Mega-Bear</strong>, or click a lone bear to glue/unglue it on the nearest wall or ceiling!',
+    portal: '<strong>0 · 3D Portal Gun:</strong> Click anywhere to place linked <strong>Cyan</strong> &amp; <strong>Orange</strong> 3D portals! Bears flying in warp out at boosted speed. (<kbd>Alt</kbd>+click to clear).',
+    heat: '<strong>- · Heat Laser:</strong> Hold to melt bears stretchy &amp; extra bouncy, thaw Cryo ice, and overheat them to <strong>POP like popcorn</strong>!',
+    yams: '<strong>= · 🍠 Yams Ray:</strong> Hold on any gummy bear to pump up their <strong>jiggly 3D butt cheeks</strong>! Hold <kbd>Shift</kbd> to deflate.',
+    blackhole: '<strong>🕳️ Black Hole Gun:</strong> Click anywhere to spawn a swirling 3D gravity well that sucks in bears before exploding!',
+    bomb: '<strong>💣 Candy Bomb:</strong> Click to drop a ticking 3D candy grenade that blasts bears skyward!',
+    clone: '<strong>🪞 Clone Ray:</strong> Click any gummy bear to clone it (preserving its flavor, scale &amp; Yam Boost)!',
+    paint: '<strong>🎨 Rainbow Brush:</strong> Click any gummy bear to splash it with a random new flavor!',
+    bonk: '<strong>🔨 Giant Bonk:</strong> Click any bear to deliver a comic downward BONK slam with jelly puddles &amp; stars!',
+    bungee: '<strong>🪢 Bungee Cord:</strong> Click 2 bears in a row to link them together with an elastic 3D candy bungee cord!',
+    bubble: '<strong>🫧 Bubble Trap:</strong> Click a bear to trap it in a floating soap bubble — click again to POP it!'
   };
 
   function announce(msg) {
@@ -343,8 +370,361 @@
       comboPill.hidden = true;
     }
     audio.playScore(combo);
+    if (progression) progression.recordHoopScore(score, combo);
     announce(`${bear.flavor.name} bear scored +${pts}! Total score ${score}.`);
   };
+
+  function syncModeHuds() {
+    if (bossHud) {
+      bossHud.hidden = !world.boss.active;
+      if (world.boss.active) {
+        const pct = Math.max(0, Math.min(100, (world.boss.hp / world.boss.maxHp) * 100));
+        if (bossHpFill) bossHpFill.style.width = `${pct}%`;
+        if (bossHpText) bossHpText.textContent = `${world.boss.hp} / ${world.boss.maxHp}`;
+      }
+    }
+    if (taHud) {
+      taHud.hidden = !world.timeAttack.active;
+      if (world.timeAttack.active) {
+        if (taTimerEl) taTimerEl.textContent = `${world.timeAttack.timeLeft.toFixed(1)}s`;
+        if (taScoreEl) taScoreEl.textContent = String(world.timeAttack.score);
+        if (taBestEl && progression) taBestEl.textContent = String(progression.data.bestTimeAttack || 0);
+      }
+    }
+    if (survHud) {
+      survHud.hidden = !world.survival.active;
+      if (world.survival.active) {
+        if (survWaveEl) survWaveEl.textContent = String(world.survival.wave);
+        if (survRepelledEl) survRepelledEl.textContent = String(world.survival.repelled);
+      }
+    }
+    const togBoss = document.getElementById('tog-boss-mode');
+    if (togBoss) togBoss.setAttribute('aria-pressed', String(world.boss.active));
+    const togTa = document.getElementById('tog-timeattack-mode');
+    if (togTa) togTa.setAttribute('aria-pressed', String(world.timeAttack.active));
+    const togSurv = document.getElementById('tog-survival-mode');
+    if (togSurv) togSurv.setAttribute('aria-pressed', String(world.survival.active));
+  }
+
+  function renderTrophiesUI() {
+    if (!progression) return;
+    const d = progression.data;
+    const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = String(val); };
+    setTxt('stat-best-score', d.bestHoopScore);
+    setTxt('stat-best-ta', d.bestTimeAttack);
+    setTxt('stat-best-wave', d.bestSurvivalWave);
+    setTxt('stat-bosses', d.bossesDefeated);
+
+    const hatGrid = document.getElementById('hat-grid');
+    if (hatGrid && HATS) {
+      hatGrid.innerHTML = '';
+      for (const h of HATS) {
+        const unlocked = progression.isHatUnlocked(h.id);
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'hat-btn';
+        btn.disabled = !unlocked;
+        btn.setAttribute('aria-pressed', String(d.selectedHat === h.id));
+        btn.innerHTML = `<span>${h.icon} ${h.name}</span>${!unlocked && h.hint ? `<span class="hat-hint">🔒 ${h.hint}</span>` : ''}`;
+        btn.addEventListener('click', () => {
+          if (progression.setHat(h.id)) {
+            world.selectedHat = h.id;
+            audio.playBoop(1.18);
+            renderTrophiesUI();
+          }
+        });
+        hatGrid.append(btn);
+      }
+    }
+
+    const achList = document.getElementById('ach-list');
+    const achProg = document.getElementById('ach-progress');
+    if (achList && ACHIEVEMENTS) {
+      achList.innerHTML = '';
+      let count = 0;
+      for (const a of ACHIEVEMENTS) {
+        const isDone = Boolean(d.unlocked[a.id]);
+        if (isDone) count++;
+        const item = document.createElement('div');
+        item.className = `ach-item${isDone ? ' unlocked' : ''}`;
+        item.innerHTML = `<span class="ach-icon">${a.icon}</span><div class="ach-meta"><strong>${a.title}</strong><small>${a.desc}</small></div>`;
+        achList.append(item);
+      }
+      if (achProg) achProg.textContent = `${count}/${ACHIEVEMENTS.length}`;
+    }
+  }
+
+  if (progression) {
+    progression.onUnlock = (ach) => {
+      audio.playAchievement();
+      showCornerToast(`🏆 Achievement Unlocked: ${ach.title}!`, 'gold');
+      renderTrophiesUI();
+    };
+    progression.onChange = () => renderTrophiesUI();
+    renderTrophiesUI();
+  }
+
+  world.onPortalJump = () => {
+    audio.playPortalWhoosh();
+    if (progression) progression.recordPortalJump();
+  };
+  world.onBearPopcorn = () => {
+    audio.playHeatPop();
+    if (progression) progression.recordPopcornPop();
+  };
+  world.onBearFuse = (bear, count) => {
+    audio.playFuseChime();
+    if (progression) progression.recordFuse();
+    showCornerToast(`🧬 Fused ${count} bears into a Giant Mega-Bear!`, 'purple');
+  };
+  world.onBearGlue = () => {
+    audio.playGlueSplat();
+  };
+  world.onBumperHit = (score) => {
+    hoopScoreEl.textContent = String(score);
+    audio.playBumperDing();
+    if (progression) progression.recordBumperHit();
+  };
+  world.onElectricZap = () => {
+    audio.playElectricZap();
+  };
+  world.onBossHit = () => {
+    audio.playBossHit();
+    syncModeHuds();
+  };
+  world.onBossDefeat = (score) => {
+    hoopScoreEl.textContent = String(score);
+    audio.playBossDefeat();
+    if (progression) progression.recordBossDefeat();
+    syncModeHuds();
+    showCornerToast('👑 GIANT OBTUSE BOSS DEFEATED! +50 pts + Gold & White Bears!', 'gold');
+  };
+  world.onTimeAttackEnd = (stats) => {
+    audio.playBossDefeat();
+    if (progression) progression.recordTimeAttack(stats.score);
+    syncModeHuds();
+    showCornerToast(`⏱️ Time-Attack Over! Score: ${stats.score} (Max Combo x${stats.maxCombo})`, 'gold');
+  };
+  world.onSurvivalWave = (wave, count) => {
+    audio.playWaveStart();
+    if (progression) progression.recordSurvivalWave(wave);
+    syncModeHuds();
+    showCornerToast(`👻 Wave ${wave}! ${count} thieves incoming!`, wave >= 3 ? 'blue' : 'red');
+  };
+  world.onSurvivalRepel = () => {
+    hoopScoreEl.textContent = String(world.score);
+    audio.playRedManRepel();
+    syncModeHuds();
+  };
+  world.onSurvivalEnd = (stats) => {
+    audio.playObtuseBeatdown();
+    syncModeHuds();
+    showCornerToast(`💀 Survival Over! Reached Wave ${stats.wave} (${stats.repelled} repelled)`, 'red');
+  };
+  world.onYamBoing = () => {
+    audio.playYamBoing();
+  };
+  world.onJellySplat = (intensity) => {
+    audio.playJellySplat(intensity);
+  };
+  world.onYamCrit = (dmg) => {
+    audio.playYamBoing();
+    showCornerToast(`🍠💥 HEAVY YAM SLAM! 2x Crit (${dmg} dmg)!`, 'gold');
+  };
+
+  const JELLY_PRESETS = {
+    slime: { jiggle: 94, bounce: 48, gravity: 85, label: 'Ultra-Slime' },
+    superball: { jiggle: 22, bounce: 97, gravity: 105, label: 'Superball Rubber' },
+    jello: { jiggle: 86, bounce: 82, gravity: 100, label: 'Jell-O Mold' },
+    lavalamp: { jiggle: 82, bounce: 88, gravity: 0, label: 'Zero-G Lava Lamp' }
+  };
+
+  document.querySelectorAll('.preset-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const p = JELLY_PRESETS[btn.dataset.preset];
+      if (!p) return;
+      const sJ = document.getElementById('slider-jiggle');
+      const sB = document.getElementById('slider-bounce');
+      const sG = document.getElementById('slider-gravity');
+      if (sJ) { sJ.value = String(p.jiggle); sJ.dispatchEvent(new Event('input')); }
+      if (sB) { sB.value = String(p.bounce); sB.dispatchEvent(new Event('input')); }
+      if (sG) { sG.value = String(p.gravity); sG.dispatchEvent(new Event('input')); }
+      world.jiggleAll();
+      audio.playBoop(1.22);
+      showCornerToast(`🍮 Jelly Preset: ${p.label}!`, 'purple');
+    });
+  });
+
+  function triggerYamQuake() {
+    world.yamQuake();
+    audio.playYamBoing();
+    showCornerToast('🍠 YAM QUAKE! Every cheek is wobbling!', 'gold');
+  }
+
+  const btnYamQuake = document.getElementById('btn-yam-quake');
+  if (btnYamQuake) btnYamQuake.addEventListener('click', triggerYamQuake);
+  const btnYamQuakeBar = document.getElementById('btn-yam-quake-bar');
+  if (btnYamQuakeBar) btnYamQuakeBar.addEventListener('click', triggerYamQuake);
+
+  // Mega 50 Callbacks & UI Wiring
+  world.onBombBoom = () => audio.playBombBoom();
+  world.onBonk = () => audio.playBonk();
+  world.onBubblePop = () => audio.playBubblePop();
+  world.onBlackHole = () => {
+    audio.playBlackHole();
+    if (progression) progression.unlock('blackhole_cast');
+  };
+  world.onBungeeLink = () => {
+    audio.playGlueSplat();
+    if (progression) progression.unlock('bungee_link');
+    showCornerToast('🪢 Linked 2 bears with a stretchy Candy Bungee!', 'blue');
+  };
+  world.onBowlingStrike = (strikes, score) => {
+    hoopScoreEl.textContent = String(score);
+    audio.playPinStrike();
+    if (progression) progression.recordStrike();
+    showCornerToast(`🎳 CANDY STRIKE #${strikes}! +30 pts!`, 'gold');
+  };
+  world.onPinataBurst = (score) => {
+    hoopScoreEl.textContent = String(score);
+    audio.playBossDefeat();
+    if (progression) progression.unlock('pinata_burst');
+    showCornerToast('🪅 PIÑATA BURST! +35 pts & 6 Rainbow/Gold Bears!', 'gold');
+  };
+  world.onChaosEvent = (name) => {
+    audio.playWaveStart();
+    if (progression) progression.recordChaos();
+    showCornerToast(`🎲 CHAOS EVENT: ${name}`, 'purple');
+  };
+
+  const wireBtn = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener('click', () => fn(el)); };
+  const wireMegaToggle = (id, getV, setV, label) => {
+    wireBtn(id, (el) => {
+      const next = !getV();
+      setV(next);
+      el.setAttribute('aria-pressed', String(next));
+      audio.playBoop(next ? 1.18 : 0.88);
+      if (label) showCornerToast(`${label}: ${next ? 'ON' : 'OFF'}`, next ? 'purple' : 'blue');
+    });
+  };
+
+  wireMegaToggle('btn-grav-flip', () => world.gravFlipped, (v) => { world.gravFlipped = v; }, '🙃 Gravity Flip');
+  wireBtn('btn-disco-pulse', () => { world.triggerDiscoPulse(); audio.playJiggleQuake(); });
+  wireMegaToggle('btn-time-freeze', () => world.timeFreeze, (v) => { world.timeFreeze = v; }, '⏸️ Freeze Time');
+
+  document.querySelectorAll('.flavor-spawn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const flv = btn.dataset.extraFlavor;
+      const b = world.spawnBear((Math.random() - 0.5) * 6, 8.0, (Math.random() - 0.5) * 4, flv);
+      audio.playBoop(1.15);
+      showCornerToast(`🍬 Dropped ${b.flavor.name} Bear!`, 'purple');
+    });
+  });
+
+  wireBtn('btn-spawn-custom', () => {
+    const inp = document.getElementById('custom-color-input');
+    const hex = inp ? inp.value : '#ff33aa';
+    world.spawnCustomColorBear(hex, (Math.random() - 0.5) * 5, 8.0, (Math.random() - 0.5) * 4);
+    audio.playBoop(1.25);
+    if (progression) progression.unlock('custom_bear');
+    showCornerToast(`🎨 Dropped Custom ${hex} Bear!`, 'purple');
+  });
+
+  wireMegaToggle('tog-bowling', () => world.bowling.enabled, (v) => world.setupBowlingPins(v), '🎳 3D Bowling Pins');
+  wireMegaToggle('tog-pendulum', () => world.pendulum.enabled, (v) => { world.pendulum.enabled = v; }, '⛓️ Wrecking Ball');
+  wireMegaToggle('tog-laserbar', () => world.laserBar.enabled, (v) => { world.laserBar.enabled = v; }, '🚨 Laser Hurdle');
+  wireMegaToggle('tog-fountain', () => world.fountain.enabled, (v) => { world.fountain.enabled = v; }, '⛲ Candy Fountain');
+  wireMegaToggle('tog-icerink', () => world.iceRink, (v) => { world.iceRink = v; }, '⛸️ Ice Rink Floor');
+  wireMegaToggle('tog-moongrav', () => world.moonGrav, (v) => {
+    world.moonGrav = v;
+    world.gravityScale = v ? 0.25 : 1.0;
+  }, '🌕 Moon Gravity');
+  wireMegaToggle('tog-autoturret', () => world.autoTurret.enabled, (v) => { world.autoTurret.enabled = v; }, '🤖 Auto-Turret');
+  wireMegaToggle('tog-booststrips', () => world.boostStrips, (v) => { world.boostStrips = v; }, '⚡ Speed Strips');
+  wireMegaToggle('tog-theme-sunset', () => world.arenaTheme === 'sunset', (v) => {
+    world.arenaTheme = v ? 'sunset' : 'default';
+    renderer.neonMode = false;
+    document.documentElement.dataset.theme = v ? 'sunset' : 'light';
+  }, '🌅 Sunset Theme');
+  wireMegaToggle('tog-theme-space', () => world.arenaTheme === 'space', (v) => {
+    world.arenaTheme = v ? 'space' : 'default';
+    renderer.neonMode = v;
+    document.documentElement.dataset.theme = v ? 'neon' : 'light';
+  }, '🌠 Space Theme');
+
+  wireBtn('btn-king-gummy', () => {
+    world.spawnKingGummy();
+    audio.playWaveStart();
+    if (progression) progression.unlock('king_gummy');
+    showCornerToast('🐻👑 KING GUMMY MEGA-BOSS ARRIVED! Bonk or blast him!', 'gold');
+  });
+  wireBtn('btn-pinata-bear', () => {
+    world.spawnPinataBear();
+    audio.playFuseChime();
+    showCornerToast('🪅 GIANT PIÑATA BEAR! Bonk it 5 times to burst!', 'gold');
+  });
+  wireMegaToggle('tog-lavafloor', () => world.lavaFloor, (v) => {
+    world.lavaFloor = v;
+    if (v && progression) progression.unlock('lava_floor');
+  }, '🌋 Floor is Lava');
+  wireBtn('btn-meteors', () => { world.triggerMeteorShower(); audio.playBombBoom(); showCornerToast('☄️ METEOR SHOWER!', 'red'); });
+  wireBtn('btn-confetti', () => { world.fireConfettiCannon(); audio.playPinStrike(); showCornerToast('🎉 CONFETTI CANNON!', 'gold'); });
+
+  let djEnabled = false;
+  wireMegaToggle('tog-djmusic', () => djEnabled, (v) => {
+    djEnabled = v;
+    if (v) {
+      if (progression) progression.unlock('dj_rave');
+      audio.startDjMusic(() => {
+        for (const b of world.bears) {
+          if (!b.isHeld && !b.yamPinned && b.cy < 2.2) {
+            for (const n of b.nodes) n.vy += 4.2;
+          }
+        }
+      });
+    } else {
+      audio.stopDjMusic();
+    }
+  }, '🎵 DJ Rave 128BPM');
+
+  wireBtn('btn-chaos', () => world.triggerRandomChaos());
+  wireMegaToggle('tog-autoorbit', () => world.autoOrbit, (v) => { world.autoOrbit = v; }, '🎥 Auto-Orbit Cam');
+  wireMegaToggle('tog-followcam', () => world.followCam, (v) => { world.followCam = v; }, '🎯 Follow Bear Cam');
+  wireBtn('btn-lowcam', () => {
+    renderer.cam.pitch = 0.12;
+    renderer.cam.distance = 12.5;
+    renderer.updateCameraMatrices();
+    audio.playBoop(1.1);
+  });
+
+  const fpsPill = document.getElementById('fps-pill');
+  const fpsVal = document.getElementById('fps-val');
+  const bearCountVal = document.getElementById('bear-count-val');
+  let showFpsHud = false;
+  wireMegaToggle('tog-fps', () => showFpsHud, (v) => {
+    showFpsHud = v;
+    if (fpsPill) fpsPill.hidden = !v;
+  }, '📊 Live FPS HUD');
+
+  wireBtn('btn-export-save', () => {
+    if (!progression) return;
+    const code = progression.exportSave();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(code).catch(() => {});
+    }
+    showCornerToast('📋 Save code copied to clipboard!', 'gold');
+  });
+  wireBtn('btn-import-save', () => {
+    if (!progression) return;
+    const code = window.prompt('Paste your Gummy Bounce 3D Save Code:');
+    if (code && progression.importSave(code)) {
+      world.selectedHat = progression.data.selectedHat || 'none';
+      renderTrophiesUI();
+      showCornerToast('📥 Save imported successfully!', 'gold');
+    } else if (code) {
+      showCornerToast('❌ Invalid save code.', 'red');
+    }
+  });
 
   function setMode(mode) {
     currentMode = mode;
@@ -662,6 +1042,60 @@
     renderer.neonMode = v;
     document.documentElement.dataset.theme = v ? 'neon' : 'light';
   }, 'Neon Rave Mode');
+  bindToggle('tog-bumpers', () => world.bumpers.enabled, (v) => { world.bumpers.enabled = v; }, 'Pinball Bumpers & Launch Pads');
+  bindToggle('tog-fan', () => world.fan.enabled, (v) => { world.fan.enabled = v; }, 'Upward Wind Tunnel Fan');
+  bindToggle('tog-boss-mode', () => world.boss.active, (v) => {
+    world.setBossMode(v);
+    syncModeHuds();
+    if (v) {
+      audio.playWaveStart();
+      showCornerToast('👹 GIANT OBTUSE BOSS ENTERED! Slingshot or Blast bears to KO him!', 'red');
+    }
+  }, 'Boss Fight Mode');
+  bindToggle('tog-timeattack-mode', () => world.timeAttack.active, (v) => {
+    world.setTimeAttackMode(v);
+    syncModeHuds();
+    if (v) {
+      audio.playWaveStart();
+      showCornerToast('⏱️ 60s Time-Attack Started! Score through the moving hoops!', 'gold');
+    }
+  }, 'Time-Attack Mode');
+  bindToggle('tog-survival-mode', () => world.survival.active, (v) => {
+    world.setSurvivalMode(v);
+    syncModeHuds();
+  }, 'Wave Survival Mode');
+
+  // Photo Mode (freeze physics, hide HUD, orbit 3D camera, download PNG)
+  function setPhotoMode(next) {
+    photoMode = Boolean(next);
+    document.body.classList.toggle('photo-mode', photoMode);
+    if (photoHud) photoHud.hidden = !photoMode;
+    if (btnPhotoMode) btnPhotoMode.setAttribute('aria-pressed', String(photoMode));
+    if (photoMode) {
+      renderer.syncSize();
+      audio.playBoop(1.25);
+    } else {
+      renderer.syncSize();
+      audio.playBoop(0.92);
+    }
+  }
+
+  function capturePhotoPng() {
+    renderer.render(performance.now() * 0.001);
+    audio.playShutter();
+    const link = document.createElement('a');
+    link.download = `gummy-bounce-3d-${Date.now()}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    if (progression) progression.recordPhotoSnap();
+    showCornerToast('📸 PNG Snapshot saved!', 'gold');
+  }
+
+  if (btnPhotoMode) btnPhotoMode.addEventListener('click', () => setPhotoMode(!photoMode));
+  const btnPhotoSnap = document.getElementById('btn-photo-snap');
+  if (btnPhotoSnap) btnPhotoSnap.addEventListener('click', capturePhotoPng);
+  const btnPhotoExit = document.getElementById('btn-photo-exit');
+  if (btnPhotoExit) btnPhotoExit.addEventListener('click', () => setPhotoMode(false));
 
   document.getElementById('btn-party-rain').addEventListener('click', () => {
     for (let i = 0; i < 8; i++) {
@@ -791,6 +1225,24 @@
     canvas.setPointerCapture(event.pointerId);
     canvas.classList.add('is-dragging');
 
+    // Photo Mode always orbits the frozen 3D camera
+    if (photoMode) {
+      interactionKind = 'orbit';
+      return;
+    }
+
+    // Alt+click in Portal mode clears both portals
+    if (currentMode === 'portal' && event.altKey && event.button === 0) {
+      world.clearPortals();
+      audio.playBoop(0.75);
+      showCornerToast('🌀 Cleared 3D Portals', 'blue');
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      canvas.classList.remove('is-dragging');
+      activePointerId = null;
+      interactionKind = null;
+      return;
+    }
+
     // Right-drag, Middle-drag, or Alt+drag always orbits the 3D camera
     if (event.button === 1 || event.button === 2 || event.altKey) {
       interactionKind = 'orbit';
@@ -798,6 +1250,19 @@
     }
 
     const { orig, dir } = renderer.screenToRay(event.clientX, event.clientY);
+
+    // Wave Survival Mode: Clicking any thief immediately repels them!
+    if (world.survival.active) {
+      const hitThief = world.hitSurvivalThiefRay(orig, dir);
+      if (hitThief) {
+        if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+        canvas.classList.remove('is-dragging');
+        activePointerId = null;
+        interactionKind = null;
+        world.repelSurvivalThief(hitThief);
+        return;
+      }
+    }
 
     // Hardcore Mode: Clicking the Red Man immediately shoos him away (or 10% Yellow Man + Obtuse Man!)
     if (world.raycastClickableRedMan(orig, dir)) {
@@ -809,6 +1274,7 @@
       activePointerId = null;
       interactionKind = null;
       world.repelHardcoreRedMan();
+      if (progression) progression.recordHardcoreRepel();
       return;
     }
 
@@ -902,7 +1368,66 @@
       return;
     }
 
-    if (effectiveMode === 'vortex' || effectiveMode === 'puff' || effectiveMode === 'cryo' || effectiveMode === 'magnet') {
+    if (effectiveMode === 'fuse') {
+      const pt = hit ? hit.point : arenaPt;
+      const res = world.tryFuseOrGlueAt(pt[0], pt[1], pt[2], hit ? hit.bear : null);
+      if (!res) {
+        audio.playBoop(0.8);
+      } else if (res.action === 'unglue') {
+        audio.playBoop(1.1);
+      }
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      canvas.classList.remove('is-dragging');
+      activePointerId = null;
+      interactionKind = null;
+      return;
+    }
+
+    if (effectiveMode === 'portal') {
+      const pt = hit ? hit.point : [arenaPt[0], Math.max(2.2, arenaPt[1] + 2.4), arenaPt[2]];
+      const slot = world.placePortal(pt[0], pt[1], pt[2]);
+      audio.playPortalWhoosh();
+      announce(`Placed ${slot === 'a' ? 'Cyan' : 'Orange'} 3D portal.`);
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      canvas.classList.remove('is-dragging');
+      activePointerId = null;
+      interactionKind = null;
+      return;
+    }
+
+    if (effectiveMode === 'blackhole' || effectiveMode === 'bomb' || effectiveMode === 'clone' || effectiveMode === 'paint' || effectiveMode === 'bonk' || effectiveMode === 'bungee' || effectiveMode === 'bubble') {
+      const pt = hit ? hit.point : arenaPt;
+      if (effectiveMode === 'blackhole') {
+        world.spawnBlackHole(pt[0], Math.max(2.6, pt[1] + 2.5), pt[2]);
+      } else if (effectiveMode === 'bomb') {
+        world.dropCandyBomb(pt[0], Math.max(2.2, pt[1] + 2.2), pt[2]);
+        audio.playBoop(0.85);
+      } else if (effectiveMode === 'clone' && hit) {
+        world.cloneBear(hit.bear);
+        audio.playBoop(1.25);
+      } else if (effectiveMode === 'paint' && hit) {
+        world.paintBearRandom(hit.bear);
+        audio.playBoop(1.3);
+      } else if (effectiveMode === 'bonk' && hit) {
+        world.bonkBear(hit.bear);
+      } else if (effectiveMode === 'bungee' && hit) {
+        world.linkBungee(hit.bear);
+        audio.playBoop(1.1);
+      } else if (effectiveMode === 'bubble' && hit) {
+        world.toggleBubbleBear(hit.bear);
+        if (progression) progression.unlock('bubble_pop');
+        audio.playBoop(1.2);
+      } else {
+        audio.playBoop(0.8);
+      }
+      if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+      canvas.classList.remove('is-dragging');
+      activePointerId = null;
+      interactionKind = null;
+      return;
+    }
+
+    if (effectiveMode === 'vortex' || effectiveMode === 'puff' || effectiveMode === 'cryo' || effectiveMode === 'magnet' || effectiveMode === 'heat' || effectiveMode === 'yams') {
       interactionKind = 'field';
       const pt = hit ? [hit.bear.cx, 0, hit.bear.cz] : arenaPt;
       world.activeField = {
@@ -912,7 +1437,7 @@
         z: pt[2],
         shrink: Boolean(event.shiftKey)
       };
-      audio.playBeamPulse(effectiveMode);
+      audio.playBeamPulse((effectiveMode === 'heat' || effectiveMode === 'yams') ? 'puff' : effectiveMode);
     }
   });
 
@@ -1098,7 +1623,7 @@
     }
   });
 
-  // Keyboard shortcuts (1-8 tools, Space/J jiggle, L cannon, N drop, T slow-mo, R reset camera)
+  // Keyboard shortcuts (1-9, 0, - tools, Space/J jiggle, L cannon, N drop, T slow-mo, C photo mode, R reset camera)
   const TOOL_KEYS = {
     '1': 'grab',
     '2': 'slingshot',
@@ -1107,13 +1632,21 @@
     '5': 'gatling',
     '6': 'puff',
     '7': 'cryo',
-    '8': 'magnet'
+    '8': 'magnet',
+    '9': 'fuse',
+    '0': 'portal',
+    '-': 'heat'
   };
 
   window.addEventListener('keydown', (event) => {
     const tag = event.target && event.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     if (toolbar.contains(event.target) && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) return;
+
+    if (event.key === 'Escape' && photoMode) {
+      setPhotoMode(false);
+      return;
+    }
 
     if (TOOL_KEYS[event.key]) {
       setMode(TOOL_KEYS[event.key]);
@@ -1122,6 +1655,16 @@
     }
 
     switch (event.key) {
+      case 'c':
+      case 'C':
+        event.preventDefault();
+        setPhotoMode(!photoMode);
+        break;
+      case 'y':
+      case 'Y':
+        event.preventDefault();
+        triggerYamQuake();
+        break;
       case ' ':
       case 'j':
       case 'J':
@@ -1312,23 +1855,36 @@
   }
 
   let lastFrameTime = performance.now();
+  let fpsSmooth = 60;
   function frame(now) {
     const dt = Math.max(0, (now - lastFrameTime) * 0.001);
     lastFrameTime = now;
+    if (dt > 0.001) {
+      fpsSmooth = fpsSmooth * 0.9 + (1 / dt) * 0.1;
+    }
 
     if (!document.hidden) {
-      if (interactionKind === 'gatling' && now - lastGatlingShot > 130) {
-        lastGatlingShot = now;
-        world.fireGatlingBear(renderer.cam.eye, gatlingAim, selectedFlavor);
-        audio.playGatlingPop();
-      }
-      if (interactionKind === 'field' && world.activeField) {
-        audio.playBeamPulse(world.activeField.type);
-      }
+      if (!photoMode) {
+        if (interactionKind === 'gatling' && now - lastGatlingShot > 130) {
+          lastGatlingShot = now;
+          world.fireGatlingBear(renderer.cam.eye, gatlingAim, selectedFlavor);
+          audio.playGatlingPop();
+        }
+        if (interactionKind === 'field' && world.activeField) {
+          audio.playBeamPulse((world.activeField.type === 'heat' || world.activeField.type === 'yams') ? 'puff' : world.activeField.type);
+        }
 
-      world.step(dt);
-      if (world.traitorMode) {
-        syncTraitorHud();
+        world.step(dt);
+        if (world.traitorMode) {
+          syncTraitorHud();
+        }
+        if (world.timeAttack.active || world.boss.active || world.survival.active) {
+          syncModeHuds();
+        }
+      }
+      if (showFpsHud) {
+        if (fpsVal) fpsVal.textContent = String(Math.round(fpsSmooth));
+        if (bearCountVal) bearCountVal.textContent = String(world.bears.length);
       }
       renderer.render(now * 0.001);
     }

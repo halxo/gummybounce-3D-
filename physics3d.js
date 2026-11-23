@@ -78,10 +78,37 @@
       points: 5,
       isWhite: true,
       exclusiveBlessing: true
+    },
+    cinnamon: {
+      id: 'cinnamon',
+      name: 'Spicy Cinnamon',
+      rgb: [0.98, 0.22, 0.04],
+      coreRgb: [1.0, 0.72, 0.14],
+      particle: [1.0, 0.44, 0.08],
+      points: 2,
+      isSpicy: true
+    },
+    electric: {
+      id: 'electric',
+      name: 'Electric Lemon',
+      rgb: [0.95, 0.96, 0.08],
+      coreRgb: [0.45, 1.0, 1.0],
+      particle: [0.55, 0.98, 1.0],
+      points: 2,
+      isElectric: true
+    },
+    ghost: {
+      id: 'ghost',
+      name: 'Ghost Bear',
+      rgb: [0.68, 0.88, 1.0],
+      coreRgb: [0.92, 0.98, 1.0],
+      particle: [0.74, 0.92, 1.0],
+      points: 3,
+      isGhost: true
     }
   };
 
-  const STANDARD_FLAVOR_KEYS = ['cherry', 'pineapple', 'apple', 'orange', 'raspberry', 'grape', 'watermelon'];
+  const STANDARD_FLAVOR_KEYS = ['cherry', 'pineapple', 'apple', 'orange', 'raspberry', 'grape', 'watermelon', 'cinnamon', 'electric'];
 
   // 3D Structural & cross-shear spring links between the 16 nodes
   const SPRING_LINKS_3D = [
@@ -151,6 +178,16 @@
       this.flavor = FLAVORS[key];
       this.scale = scale;
       this.frozen = 0; // 0 = soft gummy, 1 = cryo ice block
+      this.heat = 0; // 0 = cool, 1 = popcorn pop threshold
+      this.glued = null; // { x, y, z } when glued to wall/ceiling
+      this.portalCooldown = 0;
+      this.megaLevel = 0;
+      this.electricCooldown = 0;
+      this.yamBoost = 0; // 0..3.2 Yams Ray butt inflation
+      this.yamCharged = false; // Super Yam Charge for rocket bounce after release
+      this.yamPinned = false; // True while targeted by Yams Ray so bear stays still
+      this.yamBounceCooldown = 0;
+      this.jellyRipple = 0; // 0..1 squash & stretch jelly ripple on hard impacts
 
       this.cx = x;
       this.cy = y;
@@ -491,6 +528,77 @@
         blessingsCount: 0
       };
 
+      // 3D Portals (Portal Gun)
+      this.portals = {
+        a: null, // { x, y, z, radius, pulse }
+        b: null,
+        nextSlot: 'a'
+      };
+
+      // Pinball Bumpers & Launch Pads
+      this.bumpers = {
+        enabled: false,
+        posts: [
+          { x: -3.2, z: -2.0, radius: 0.95, height: 1.55, pulse: 0, color: [1.0, 0.16, 0.62] },
+          { x: 3.2, z: -2.0, radius: 0.95, height: 1.55, pulse: 0, color: [0.12, 0.85, 1.0] },
+          { x: 0.0, z: 2.6, radius: 1.05, height: 1.65, pulse: 0, color: [1.0, 0.82, 0.10] }
+        ],
+        pads: [
+          { x: -7.5, z: -1.8, radius: 1.45, pulse: 0, vx: 11.5, vy: 16.5, vz: -2.0 },
+          { x: 7.5, z: -1.8, radius: 1.45, pulse: 0, vx: -11.5, vy: 16.5, vz: -2.0 }
+        ]
+      };
+
+      // Upward Wind Tunnel / Floor Fan
+      this.fan = {
+        enabled: false,
+        x: 4.6,
+        z: 2.2,
+        radius: 2.45,
+        angle: 0,
+        strength: 36.0
+      };
+
+      // Boss Fight Mode: Giant Obtuse Man
+      this.bossMode = false;
+      this.boss = {
+        active: false,
+        hp: 100,
+        maxHp: 100,
+        x: 0,
+        z: -2.5,
+        yaw: 0,
+        stridePhase: 0,
+        animTime: 0,
+        hitFlash: 0,
+        stompTimer: 4.5,
+        targetX: 0,
+        targetZ: 0,
+        scale: 1.85
+      };
+
+      // Time-Attack Hoop Challenge Mode
+      this.timeAttack = {
+        active: false,
+        timeLeft: 60.0,
+        score: 0,
+        maxCombo: 0
+      };
+
+      // Wave Survival Mode (Green -> Red -> Ghost Thieves)
+      this.survival = {
+        active: false,
+        wave: 0,
+        waveTimer: 0,
+        repelled: 0,
+        thieves: [] // { id, variant: 'green'|'red'|'ghost', phase, x, z, yaw, stridePhase, animTime, targetBear, dir, fleeDir, flickerPhase }
+      };
+      this.nextSurvivalThiefId = 1;
+
+      // Cosmetics & Floor Jelly Puddles
+      this.selectedHat = 'none';
+      this.puddles = []; // { x, z, r, maxR, rgb, alpha }
+
       // Callbacks
       this.onSquish = null;
       this.onScore = null;
@@ -506,6 +614,312 @@
       this.onRedManRepelled = null;
       this.onYellowManGift = null;
       this.onObtuseManBeatdown = null;
+      this.onPortalJump = null;
+      this.onBearPopcorn = null;
+      this.onBearFuse = null;
+      this.onBearGlue = null;
+      this.onBumperHit = null;
+      this.onElectricZap = null;
+      this.onBossHit = null;
+      this.onBossDefeat = null;
+      this.onTimeAttackEnd = null;
+      this.onSurvivalWave = null;
+      this.onSurvivalEnd = null;
+      this.onSurvivalRepel = null;
+      this.onYamBoing = null;
+      this.onJellySplat = null;
+      this.onYamCrit = null;
+    }
+
+    yamQuake() {
+      let count = 0;
+      for (const b of this.bears) {
+        if (b.isStolen || b.isBlessedHold) continue;
+        count++;
+        b.jellyRipple = 1.0;
+        b.exciteJiggle(8.5);
+        if (b.nodes[16] && b.nodes[17]) {
+          const boost = 6.5 + (b.yamBoost || 0) * 3.2;
+          b.nodes[16].vx -= boost * 0.7;
+          b.nodes[16].vy += boost;
+          b.nodes[17].vx += boost * 0.7;
+          b.nodes[17].vy += boost;
+        }
+        if ((b.yamBoost || 0) >= 1.2) {
+          this.shockwaves.push({ x: b.cx, y: 0.25, z: b.cz, r: 0.4, maxR: 4.6, alpha: 0.85 });
+          this.spawnParticles(b.cx, b.cy, b.cz, [0.98, 0.56, 0.16], 10, 1.1);
+        }
+      }
+      return count;
+    }
+
+    placePortal(x, y, z) {
+      const slot = this.portals.nextSlot;
+      const py = Math.max(1.5, Math.min(this.ceilingY - 2.2, y));
+      const px = Math.max(-this.boundsX + 1.6, Math.min(this.boundsX - 1.6, x));
+      const pz = Math.max(-this.boundsZ + 1.6, Math.min(this.boundsZ - 1.6, z));
+      this.portals[slot] = { x: px, y: py, z: pz, radius: 1.55, pulse: 1.0 };
+      this.portals.nextSlot = slot === 'a' ? 'b' : 'a';
+      const col = slot === 'a' ? [0.12, 0.86, 1.0] : [1.0, 0.48, 0.08];
+      this.spawnParticles(px, py, pz, col, 18, 1.15);
+      return slot;
+    }
+
+    clearPortals() {
+      this.portals.a = null;
+      this.portals.b = null;
+      this.portals.nextSlot = 'a';
+    }
+
+    tryFuseOrGlueAt(x, y, z, clickedBear = null) {
+      // If clicking an already glued bear, unglue it!
+      if (clickedBear && clickedBear.glued) {
+        clickedBear.glued = null;
+        clickedBear.exciteJiggle(4.5);
+        this.spawnParticles(clickedBear.cx, clickedBear.cy, clickedBear.cz, [1.0, 0.55, 0.85], 12, 0.8);
+        return { action: 'unglue', bear: clickedBear };
+      }
+
+      // Check for 2+ bears near (x, y, z) to fuse into a Giant Mega-Bear!
+      const nearby = this.bears.filter((b) => {
+        if (b.isStolen || b.isBlessedHold || b.isTraitor) return false;
+        const d = Math.hypot(b.cx - x, b.cy - y, b.cz - z);
+        return d < 3.6 + b.boundRadius;
+      });
+      nearby.sort((a, b) => Math.hypot(a.cx - x, a.cy - y, a.cz - z) - Math.hypot(b.cx - x, b.cy - y, b.cz - z));
+
+      if (nearby.length >= 2) {
+        const primary = nearby[0];
+        const absorbed = nearby.slice(1, 3); // Fuse up to 3 bears total
+        let avgX = primary.cx;
+        let avgY = primary.cy;
+        let avgZ = primary.cz;
+        for (const ab of absorbed) {
+          avgX += ab.cx;
+          avgY += ab.cy;
+          avgZ += ab.cz;
+          const idx = this.bears.indexOf(ab);
+          if (idx !== -1) this.bears.splice(idx, 1);
+          this.spawnParticles(ab.cx, ab.cy, ab.cz, ab.flavor.particle, 16, 1.2);
+        }
+        const total = 1 + absorbed.length;
+        avgX /= total;
+        avgY = Math.max(1.5, avgY / total);
+        avgZ /= total;
+
+        const nextScale = Math.min(2.25, primary.scale + absorbed.length * 0.36);
+        primary.setScale(nextScale);
+        primary.megaLevel = Math.min(4, (primary.megaLevel || 0) + absorbed.length);
+        primary.glued = null;
+        const dx = avgX - primary.cx;
+        const dy = avgY - primary.cy;
+        const dz = avgZ - primary.cz;
+        for (const n of primary.nodes) {
+          n.x += dx;
+          n.y += dy;
+          n.z += dz;
+          n.vy += 4.5;
+        }
+        primary.updateShapeFrame();
+        primary.exciteJiggle(8.5);
+        this.spawnParticles(avgX, avgY, avgZ, [1.0, 0.85, 0.2], 26, 1.5);
+        this.shockwaves.push({ x: avgX, y: avgY, z: avgZ, r: 0.5, maxR: 5.2, alpha: 0.95 });
+        if (this.onBearFuse) this.onBearFuse(primary, total);
+        return { action: 'fuse', bear: primary, count: total };
+      }
+
+      // Otherwise glue the clicked bear to the nearest wall or ceiling!
+      const target = clickedBear || nearby[0];
+      if (target && !target.isStolen && !target.isBlessedHold) {
+        const dLeft = Math.abs(target.cx - (-this.boundsX));
+        const dRight = Math.abs(this.boundsX - target.cx);
+        const dBack = Math.abs(target.cz - (-this.boundsZ));
+        const dFront = Math.abs(this.boundsZ - target.cz);
+        const dCeil = Math.abs(this.ceilingY - target.cy);
+        const minD = Math.min(dLeft, dRight, dBack, dFront, dCeil);
+        let gx = target.cx;
+        let gy = Math.max(1.8, target.cy);
+        let gz = target.cz;
+        if (minD === dLeft) gx = -this.boundsX + 0.85 * target.scale;
+        else if (minD === dRight) gx = this.boundsX - 0.85 * target.scale;
+        else if (minD === dBack) gz = -this.boundsZ + 0.85 * target.scale;
+        else if (minD === dFront) gz = this.boundsZ - 0.85 * target.scale;
+        else gy = this.ceilingY - 1.15 * target.scale;
+
+        target.glued = { x: gx, y: gy, z: gz };
+        target.exciteJiggle(5.0);
+        this.spawnParticles(gx, gy, gz, [1.0, 0.48, 0.82], 14, 0.9);
+        if (this.onBearGlue) this.onBearGlue(target);
+        return { action: 'glue', bear: target };
+      }
+      return null;
+    }
+
+    setBossMode(enabled) {
+      this.bossMode = Boolean(enabled);
+      if (this.bossMode) {
+        if (this.traitorMode) this.setTraitorMode(false);
+        if (this.timeAttack.active) this.setTimeAttackMode(false);
+        if (this.survival.active) this.setSurvivalMode(false);
+        this.boss.active = true;
+        this.boss.hp = this.boss.maxHp;
+        this.boss.x = 0;
+        this.boss.z = -3.8;
+        this.boss.yaw = 0;
+        this.boss.animTime = 0;
+        this.boss.hitFlash = 0;
+        this.boss.stompTimer = 3.8;
+        this.boss.targetX = 0;
+        this.boss.targetZ = 0.5;
+        this.shockwaves.push({ x: 0, y: 0.25, z: -3.8, r: 0.6, maxR: 7.5, alpha: 1.0 });
+        this.spawnParticles(0, 2.5, -3.8, [1.0, 0.22, 0.14], 30, 1.6);
+      } else {
+        this.boss.active = false;
+      }
+    }
+
+    damageBoss(dmg, hitBear = null) {
+      if (!this.boss.active || this.boss.hp <= 0) return;
+      this.boss.hp = Math.max(0, this.boss.hp - dmg);
+      this.boss.hitFlash = 1.0;
+      const bx = this.boss.x;
+      const bz = this.boss.z;
+      this.spawnParticles(bx, 2.8, bz, [1.0, 0.84, 0.18], 18, 1.3);
+      if (this.onBossHit) this.onBossHit(this.boss.hp, this.boss.maxHp, dmg, hitBear);
+
+      if (this.boss.hp <= 0) {
+        this.boss.active = false;
+        this.bossMode = false;
+        this.score += 50;
+        this.spawnParticles(bx, 3.2, bz, [1.0, 0.84, 0.12], 55, 2.2);
+        this.spawnParticles(bx, 3.2, bz, [1.0, 0.32, 0.62], 35, 1.9);
+        this.shockwaves.push({ x: bx, y: 0.35, z: bz, r: 0.6, maxR: 11.0, alpha: 1.0 });
+        // Reward 2 celebration bears (1 Gold + 1 White!)
+        if (this.bears.length < 28) {
+          const b1 = this.spawnBear(bx - 1.1, 4.5, bz, 'gold', 1.15);
+          b1.applyImpulse(-3, 9, 2, 4, 4, 4);
+          const b2 = this.spawnBear(bx + 1.1, 4.5, bz, 'white', 1.15);
+          b2.applyImpulse(3, 9, 2, 4, 4, 4);
+        }
+        if (this.onBossDefeat) this.onBossDefeat(this.score);
+      }
+    }
+
+    setTimeAttackMode(enabled) {
+      const next = Boolean(enabled);
+      this.timeAttack.active = next;
+      if (next) {
+        if (this.traitorMode) this.setTraitorMode(false);
+        if (this.bossMode) this.setBossMode(false);
+        if (this.survival.active) this.setSurvivalMode(false);
+        this.timeAttack.timeLeft = 60.0;
+        this.timeAttack.score = 0;
+        this.timeAttack.maxCombo = 0;
+        for (const h of this.hoops) {
+          h.enabled = true;
+          h.baseX = h.baseX ?? h.x;
+          h.baseRadius = h.baseRadius ?? h.radius;
+        }
+      } else {
+        for (const h of this.hoops) {
+          if (h.baseX !== undefined) h.x = h.baseX;
+          if (h.baseRadius !== undefined) h.radius = h.baseRadius;
+        }
+      }
+    }
+
+    setSurvivalMode(enabled) {
+      const next = Boolean(enabled);
+      this.survival.active = next;
+      this.survival.thieves = [];
+      if (next) {
+        if (this.traitorMode) this.setTraitorMode(false);
+        if (this.bossMode) this.setBossMode(false);
+        if (this.timeAttack.active) this.setTimeAttackMode(false);
+        this.hardMode = false;
+        this.hardcoreMode = false;
+        this.survival.wave = 1;
+        this.survival.repelled = 0;
+        this.survival.waveTimer = 1.2;
+        // Guarantee a shiny stash of at least 6 bears including Gold & White
+        while (this.bears.length < 6) {
+          this.spawnBear((Math.random() - 0.5) * 6, 4 + Math.random() * 3, (Math.random() - 0.5) * 4, Math.random() < 0.5 ? 'gold' : 'white', 1.05);
+        }
+        this.spawnSurvivalWave(1);
+      }
+    }
+
+    spawnSurvivalWave(wave) {
+      const count = Math.min(5, 1 + wave);
+      for (let i = 0; i < count; i++) {
+        let variant = 'green';
+        if (wave === 2) variant = i % 2 === 0 ? 'red' : 'green';
+        else if (wave >= 3) {
+          const r = i % 3;
+          variant = r === 0 ? 'ghost' : r === 1 ? 'red' : 'green';
+        }
+        const dir = i % 2 === 0 ? 1 : -1;
+        const startX = dir > 0 ? -(this.boundsX + 4.5 + i * 2.4) : (this.boundsX + 4.5 + i * 2.4);
+        const startZ = (Math.random() - 0.5) * (this.boundsZ * 1.1);
+        this.survival.thieves.push({
+          id: this.nextSurvivalThiefId++,
+          variant,
+          phase: 'approach',
+          x: startX,
+          z: startZ,
+          yaw: dir > 0 ? Math.PI * 0.5 : -Math.PI * 0.5,
+          stridePhase: Math.random() * 6,
+          animTime: 0,
+          flickerPhase: Math.random() * 10,
+          dir,
+          fleeDir: -dir,
+          targetBear: null
+        });
+      }
+      if (this.onSurvivalWave) this.onSurvivalWave(wave, count);
+    }
+
+    hitSurvivalThiefRay(orig, dir) {
+      if (!this.survival.active) return null;
+      let best = null;
+      let bestDist = Infinity;
+      for (const th of this.survival.thieves) {
+        if (th.phase === 'flee') continue;
+        const cx = th.x;
+        const cy = 2.0;
+        const cz = th.z;
+        const ocx = cx - orig[0];
+        const ocy = cy - orig[1];
+        const ocz = cz - orig[2];
+        const t = ocx * dir[0] + ocy * dir[1] + ocz * dir[2];
+        if (t < 0) continue;
+        const px = orig[0] + dir[0] * t;
+        const py = orig[1] + dir[1] * t;
+        const pz = orig[2] + dir[2] * t;
+        const dist = Math.hypot(px - cx, py - cy, pz - cz);
+        if (dist < 2.2 && t < bestDist) {
+          bestDist = t;
+          best = th;
+        }
+      }
+      return best;
+    }
+
+    repelSurvivalThief(th) {
+      if (!th || th.phase === 'flee') return false;
+      th.phase = 'flee';
+      th.fleeDir = th.x >= 0 ? 1 : -1;
+      if (th.targetBear) {
+        th.targetBear.isStolen = false;
+        th.targetBear.applyImpulse(0, 7.5, 0, 3, 3, 3);
+        th.targetBear = null;
+      }
+      this.survival.repelled += 1;
+      this.score += th.variant === 'ghost' ? 10 : th.variant === 'red' ? 6 : 4;
+      const col = th.variant === 'ghost' ? [0.65, 0.94, 1.0] : th.variant === 'red' ? [1.0, 0.25, 0.25] : [0.22, 0.95, 0.42];
+      this.spawnParticles(th.x, 2.2, th.z, col, 20, 1.3);
+      if (this.onSurvivalRepel) this.onSurvivalRepel(th, this.survival.repelled);
+      return true;
     }
 
     nextHardcoreDelay() {
@@ -1322,8 +1736,15 @@
 
       for (const h of this.hoops) {
         if (!h.enabled) continue;
-        h.phase += dt * 1.65;
-        h.y = h.baseY + Math.sin(h.phase) * 0.65;
+        h.phase += dt * (this.timeAttack.active ? 2.5 : 1.65);
+        h.y = h.baseY + Math.sin(h.phase) * (this.timeAttack.active ? 1.15 : 0.65);
+        if (this.timeAttack.active) {
+          const baseX = h.baseX !== undefined ? h.baseX : h.x;
+          const baseR = h.baseRadius !== undefined ? h.baseRadius : h.radius;
+          const progress = Math.max(0, Math.min(1, 1 - this.timeAttack.timeLeft / 60.0));
+          h.x = baseX + Math.cos(h.phase * 0.72) * (1.8 + progress * 1.6);
+          h.radius = Math.max(1.05, baseR * (1 - progress * 0.25));
+        }
         h.pulse = Math.max(0, h.pulse - rawDt * 2.5);
       }
 
@@ -1333,6 +1754,200 @@
 
       if (this.sweeper.enabled) {
         this.sweeper.angle += this.sweeper.speed * dt;
+      }
+
+      if (this.fan.enabled) {
+        this.fan.angle += dt * 11.5;
+        if (Math.random() < 0.35) {
+          const a = Math.random() * Math.PI * 2;
+          const rr = Math.random() * (this.fan.radius * 0.85);
+          this.particles.push({
+            x: this.fan.x + Math.cos(a) * rr,
+            y: 0.35,
+            z: this.fan.z + Math.sin(a) * rr,
+            vx: (Math.random() - 0.5) * 1.4,
+            vy: 9.5 + Math.random() * 4.5,
+            vz: (Math.random() - 0.5) * 1.4,
+            r: 0.78, g: 0.96, b: 1.0,
+            size: 0.08, life: 0.75, decay: 1.4
+          });
+        }
+      }
+
+      if (this.bumpers.enabled) {
+        for (const p of this.bumpers.posts) p.pulse = Math.max(0, p.pulse - rawDt * 3.8);
+        for (const pad of this.bumpers.pads) pad.pulse = Math.max(0, pad.pulse - rawDt * 3.2);
+      }
+
+      if (this.portals.a) this.portals.a.pulse = Math.max(0, this.portals.a.pulse - rawDt * 2.6);
+      if (this.portals.b) this.portals.b.pulse = Math.max(0, this.portals.b.pulse - rawDt * 2.6);
+
+      // Time-Attack countdown
+      if (this.timeAttack.active) {
+        this.timeAttack.timeLeft = Math.max(0, this.timeAttack.timeLeft - Math.min(rawDt, 0.1));
+        if (this.timeAttack.timeLeft <= 0) {
+          const stats = {
+            score: this.timeAttack.score,
+            maxCombo: this.timeAttack.maxCombo
+          };
+          this.setTimeAttackMode(false);
+          if (this.onTimeAttackEnd) this.onTimeAttackEnd(stats);
+        }
+      }
+
+      // Boss Fight Mode: Giant Obtuse Man AI, stomp attack, and bear-impact damage
+      if (this.boss.active) {
+        const bs = this.boss;
+        const stepB = Math.min(rawDt, 0.05);
+        bs.animTime += stepB;
+        bs.hitFlash = Math.max(0, bs.hitFlash - stepB * 4.5);
+        bs.stridePhase += stepB * 10.5;
+
+        const dtx = bs.targetX - bs.x;
+        const dtz = bs.targetZ - bs.z;
+        const tDist = Math.hypot(dtx, dtz);
+        if (tDist < 1.2) {
+          bs.targetX = (Math.random() - 0.5) * (this.boundsX * 1.15);
+          bs.targetZ = (Math.random() - 0.5) * (this.boundsZ * 1.05);
+        } else {
+          const spd = 3.6;
+          bs.x += (dtx / tDist) * spd * stepB;
+          bs.z += (dtz / tDist) * spd * stepB;
+          bs.yaw = Math.atan2(dtx, dtz);
+        }
+
+        bs.stompTimer -= stepB;
+        if (bs.stompTimer <= 0) {
+          bs.stompTimer = 4.2 + Math.random() * 1.8;
+          this.shockwaves.push({ x: bs.x, y: 0.25, z: bs.z, r: 0.8, maxR: 8.5, alpha: 0.95 });
+          this.spawnParticles(bs.x, 0.5, bs.z, [1.0, 0.35, 0.12], 24, 1.5);
+          for (const b of this.bears) {
+            const dx = b.cx - bs.x;
+            const dz = b.cz - bs.z;
+            const d = Math.hypot(dx, dz);
+            if (d < 7.8) {
+              const ux = d > 0.1 ? dx / d : 1;
+              const uz = d > 0.1 ? dz / d : 0;
+              b.applyImpulse(ux * 11.5, 9.5, uz * 11.5, 5, 5, 4);
+              b.exciteJiggle(7.0);
+            }
+          }
+        }
+
+        // Check fast gummy bears hitting the Giant Boss!
+        for (const b of this.bears) {
+          if (b.isHeld || b.isStolen) continue;
+          const dx = b.cx - bs.x;
+          const dy = b.cy - 2.6;
+          const dz = b.cz - bs.z;
+          const d = Math.hypot(dx, dy * 0.65, dz);
+          const spd = Math.hypot(b.vx, b.vy, b.vz);
+          if (d < 2.25 + b.boundRadius && spd > 6.5) {
+            const dmg = Math.round(Math.min(28, (spd * 0.85) * (b.scale * 0.9 + (b.megaLevel || 0) * 0.35)));
+            const ux = d > 0.05 ? dx / d : 1;
+            const uz = d > 0.05 ? dz / d : 0;
+            b.applyImpulse(ux * 10.0, 6.5, uz * 10.0, 4, 4, 4);
+            b.exciteJiggle(7.5);
+            this.damageBoss(Math.max(6, dmg), b);
+            if (!bs.active) break;
+          }
+        }
+      }
+
+      // Wave Survival Mode: Green / Red / Ghost Thieves
+      if (this.survival.active) {
+        const sv = this.survival;
+        const stepS = Math.min(rawDt, 0.05);
+        for (let i = sv.thieves.length - 1; i >= 0; i--) {
+          const th = sv.thieves[i];
+          th.animTime += stepS;
+          th.flickerPhase += stepS * 9.0;
+          const spd = th.phase === 'flee' ? 14.0 : th.variant === 'ghost' ? 5.6 : th.variant === 'red' ? 6.8 : 4.6;
+          th.stridePhase += stepS * (th.phase === 'flee' ? 24 : 16);
+
+          if (th.phase === 'approach') {
+            if (!th.targetBear || !this.bears.includes(th.targetBear) || th.targetBear.isStolen) {
+              th.targetBear = this.bears.find((b) => !b.isHeld && !b.isStolen && !b.isBlessedHold) || null;
+            }
+            if (!th.targetBear) {
+              th.phase = 'flee';
+              th.fleeDir = th.x >= 0 ? 1 : -1;
+            } else {
+              const dx = th.targetBear.cx - th.x;
+              const dz = th.targetBear.cz - th.z;
+              const d = Math.hypot(dx, dz);
+              if (d < 1.35) {
+                th.targetBear.isStolen = true;
+                th.targetBear.glued = null;
+                th.phase = 'escape';
+                th.fleeDir = th.x >= 0 ? 1 : -1;
+              } else {
+                th.x += (dx / d) * spd * stepS;
+                th.z += (dz / d) * spd * stepS;
+                th.yaw = Math.atan2(dx, dz);
+              }
+            }
+
+            // Fast thrown/blasted bears can knock out Survival Thieves!
+            for (const b of this.bears) {
+              if (b.isHeld || b.isStolen) continue;
+              const spdB = Math.hypot(b.vx, b.vy, b.vz);
+              if (spdB > 8.0 && Math.hypot(b.cx - th.x, b.cz - th.z) < 1.6 + b.boundRadius && b.cy < 4.5) {
+                this.repelSurvivalThief(th);
+                b.exciteJiggle(6.0);
+                break;
+              }
+            }
+          } else if (th.phase === 'escape') {
+            th.x += th.fleeDir * (spd * 1.1) * stepS;
+            th.yaw = th.fleeDir > 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
+            if (th.targetBear) {
+              const tb = th.targetBear;
+              const hx = th.x + Math.sin(th.yaw) * 0.7;
+              const hy = 2.0;
+              const hz = th.z + Math.cos(th.yaw) * 0.7;
+              const ox = hx - tb.cx;
+              const oy = hy - tb.cy;
+              const oz = hz - tb.cz;
+              for (const n of tb.nodes) {
+                n.x += ox;
+                n.y += oy;
+                n.z += oz;
+                n.vx = 0; n.vy = 0; n.vz = 0;
+              }
+              tb.updateShapeFrame();
+              tb.syncGpuNodes();
+            }
+            if (Math.abs(th.x) > this.boundsX + 5.5) {
+              if (th.targetBear) {
+                const idx = this.bears.indexOf(th.targetBear);
+                if (idx !== -1) this.bears.splice(idx, 1);
+                this.greenMan.stolenCount += 1;
+                if (this.onGreenManSteal) this.onGreenManSteal(th.targetBear, this.greenMan.stolenCount, th.variant);
+              }
+              sv.thieves.splice(i, 1);
+            }
+          } else if (th.phase === 'flee') {
+            th.x += th.fleeDir * spd * stepS;
+            th.yaw = th.fleeDir > 0 ? Math.PI * 0.5 : -Math.PI * 0.5;
+            if (Math.abs(th.x) > this.boundsX + 6.5) {
+              sv.thieves.splice(i, 1);
+            }
+          }
+        }
+
+        if (this.bears.length === 0) {
+          const stats = { wave: sv.wave, repelled: sv.repelled };
+          this.setSurvivalMode(false);
+          if (this.onSurvivalEnd) this.onSurvivalEnd(stats);
+        } else if (sv.thieves.length === 0) {
+          sv.waveTimer -= stepS;
+          if (sv.waveTimer <= 0) {
+            sv.wave += 1;
+            sv.waveTimer = 2.2;
+            this.spawnSurvivalWave(sv.wave);
+          }
+        }
       }
 
       // Update Traitor Mode subtle cues (bulging belly + cheeky expression) & 60s hunger timer
@@ -1382,7 +1997,7 @@
 
       // Tall Sculpted 3D Runner (Normal/Hard/Hardcore Heist, Purple Man Suspect Collection, Red Man Penalty, Yellow Man)
       if (!gm.active) {
-        if (!this.traitorMode && !this.obtuseMan.active) {
+        if (!this.traitorMode && !this.obtuseMan.active && !this.survival.active && !this.boss.active && !this.timeAttack.active) {
           this.greenManTimer -= Math.min(rawDt, 0.1);
           if (this.greenManTimer <= 0) {
             this.triggerGreenManHeist();
@@ -1799,8 +2414,66 @@
             const d = Math.hypot(b.cx - fld.x, b.cy - (fld.y + 1.1), b.cz - fld.z);
             if (d < 3.6 + b.boundRadius && b.frozen < 1) {
               b.frozen = Math.min(1, b.frozen + rawDt * 2.8);
+              b.heat = Math.max(0, b.heat - rawDt * 2.5);
               if (Math.random() < 0.35) {
                 this.spawnParticles(b.cx, b.cy + 0.5, b.cz, [0.74, 0.95, 1.0], 1, 0.5, true);
+              }
+            }
+          }
+        } else if (fld.type === 'heat') {
+          for (const b of this.bears) {
+            const d = Math.hypot(b.cx - fld.x, b.cy - (fld.y + 1.1), b.cz - fld.z);
+            if (d < 3.4 + b.boundRadius) {
+              if (b.frozen > 0) {
+                b.frozen = Math.max(0, b.frozen - rawDt * 3.5);
+              }
+              b.heat = Math.min(1.05, b.heat + rawDt * 1.15);
+              b.exciteJiggle(2.4);
+              if (Math.random() < 0.45) {
+                this.spawnParticles(b.cx, b.cy + 0.4, b.cz, [1.0, 0.48, 0.08], 1, 0.65);
+              }
+              if (b.heat >= 1.0) {
+                // POPCORN POP!
+                b.heat = 0;
+                b.glued = null;
+                b.applyImpulse((Math.random() - 0.5) * 11, 17.5, (Math.random() - 0.5) * 11, 7, 7, 5);
+                b.exciteJiggle(10.0);
+                this.spawnParticles(b.cx, b.cy + 0.3, b.cz, [1.0, 0.92, 0.48], 26, 1.6);
+                this.spawnParticles(b.cx, b.cy + 0.3, b.cz, [1.0, 0.36, 0.06], 16, 1.3);
+                this.shockwaves.push({ x: b.cx, y: b.cy, z: b.cz, r: 0.4, maxR: 4.5, alpha: 0.85 });
+                if (this.onBearPopcorn) this.onBearPopcorn(b);
+              }
+            }
+          }
+        } else if (fld.type === 'yams') {
+          for (const b of this.bears) {
+            if (b.isBlessedHold) continue;
+            const d = Math.hypot(b.cx - fld.x, b.cy - (fld.y + 1.1), b.cz - fld.z);
+            if (d < 3.6 + b.boundRadius) {
+              // Pin bear completely still so Yams Ray NEVER makes them move!
+              b.yamPinned = true;
+              for (const n of b.nodes) {
+                n.vx = 0;
+                n.vy = 0;
+                n.vz = 0;
+              }
+              const prevYam = b.yamBoost || 0;
+              const delta = (fld.shrink ? -1.8 : 1.8) * rawDt;
+              b.yamBoost = Math.max(0, Math.min(3.2, prevYam + delta));
+              if (b.nodes[16] && b.nodes[17]) {
+                const cheekR = (0.26 + b.yamBoost * 0.14) * b.scale;
+                b.nodes[16].r = cheekR;
+                b.nodes[17].r = cheekR;
+              }
+              if (!fld.shrink && prevYam < 3.0 && b.yamBoost >= 3.0 && !b.yamCharged) {
+                b.yamCharged = true;
+                this.spawnParticles(b.cx, b.cy, b.cz, [1.0, 0.72, 0.14], 22, 1.3);
+              }
+              if (fld.shrink && b.yamBoost < 2.5) {
+                b.yamCharged = false;
+              }
+              if (Math.random() < 0.35) {
+                this.spawnParticles(b.cx, b.cy, b.cz, [0.95, 0.52, 0.16], 1, 0.65);
               }
             }
           }
@@ -1808,6 +2481,20 @@
       }
 
       for (const b of this.bears) {
+        if (!this.activeField || this.activeField.type !== 'yams') {
+          b.yamPinned = false;
+        }
+        if (b.portalCooldown > 0) b.portalCooldown = Math.max(0, b.portalCooldown - rawDt);
+        if (b.electricCooldown > 0) b.electricCooldown = Math.max(0, b.electricCooldown - rawDt);
+        if (b.yamBounceCooldown > 0) b.yamBounceCooldown = Math.max(0, b.yamBounceCooldown - rawDt);
+        if (b.jellyRipple > 0) b.jellyRipple = Math.max(0, b.jellyRipple - rawDt * 2.2);
+        if (!this.activeField || this.activeField.type !== 'heat') {
+          if (b.heat > 0) b.heat = Math.max(0, b.heat - rawDt * 0.25);
+        }
+        // Spicy Cinnamon fire trail when moving
+        if (b.flavor.isSpicy && Math.hypot(b.vx, b.vy, b.vz) > 4.0 && Math.random() < 0.38) {
+          this.spawnParticles(b.cx, b.cy, b.cz, [1.0, 0.38, 0.06], 1, 0.55);
+        }
         b.prevCx = b.cx;
         b.prevCy = b.cy;
         b.prevCz = b.cz;
@@ -1819,6 +2506,14 @@
         // 1. Internal 3D Soft-Body Forces + Field Forces
         for (const b of this.bears) {
           b.updateShapeFrame();
+
+          if (b.yamPinned) {
+            for (const n of b.nodes) {
+              n.fx = 0; n.fy = 0; n.fz = 0;
+              n.vx = 0; n.vy = 0; n.vz = 0;
+            }
+            continue;
+          }
 
           const freezeBoost = 1 + b.frozen * 4.5;
           const kShape = baseKShape * freezeBoost;
@@ -1842,7 +2537,8 @@
             n.fz += (gz - n.z) * kShape * n.m;
           }
 
-          // 3D Structural & Cross Springs
+          // 3D Structural & Cross Springs (extra loose on butt cheeks when high-yam!)
+          const looseCheeks = (b.yamBoost || 0) >= 1.2;
           for (const s of b.springs) {
             const a = b.nodes[s.i];
             const c = b.nodes[s.j];
@@ -1850,7 +2546,8 @@
             const dy = c.y - a.y;
             const dz = c.z - a.z;
             const len = Math.hypot(dx, dy, dz) || 1e-4;
-            const f = ((len - s.restLen) / len) * kSpring * s.mult;
+            const yamSoft = (looseCheeks && (s.i >= 16 || s.j >= 16)) ? 0.45 : 1.0;
+            const f = ((len - s.restLen) / len) * kSpring * s.mult * yamSoft;
             const fx = dx * f;
             const fy = dy * f;
             const fz = dz * f;
@@ -2200,18 +2897,104 @@
           }
         }
 
-        // 7. Room Floor, Trampoline, Walls & Ceiling Collisions
+        // 6b. Upward Wind Tunnel / Floor Fan
+        if (this.fan.enabled) {
+          const fn = this.fan;
+          for (const b of this.bears) {
+            if (b.isHeld || b.isStolen || b.glued) continue;
+            const dx = b.cx - fn.x;
+            const dz = b.cz - fn.z;
+            const dSq = dx * dx + dz * dz;
+            if (dSq < fn.radius * fn.radius && b.cy < 13.5) {
+              const heightFalloff = Math.max(0.25, 1 - b.cy / 15.0);
+              const lift = fn.strength * heightFalloff * subDt;
+              const swirl = 7.5 * subDt;
+              for (const n of b.nodes) {
+                n.vy += lift;
+                n.vx += (-dz * swirl) * 0.25;
+                n.vz += (dx * swirl) * 0.25;
+              }
+            }
+          }
+        }
+
+        // 6c. Pinball Bumpers & Floor Launch Pads
+        if (this.bumpers.enabled) {
+          for (const b of this.bears) {
+            if (b.isHeld || b.isStolen) continue;
+            for (const post of this.bumpers.posts) {
+              if (b.cy > post.height + b.boundRadius) continue;
+              const dx = b.cx - post.x;
+              const dz = b.cz - post.z;
+              const d = Math.hypot(dx, dz);
+              const minD = post.radius + b.boundRadius * 0.85;
+              if (d < minD && d > 1e-4) {
+                const ux = dx / d;
+                const uz = dz / d;
+                const push = minD - d;
+                for (const n of b.nodes) {
+                  n.x += ux * push;
+                  n.z += uz * push;
+                  n.vx = ux * 15.5;
+                  n.vy = Math.max(n.vy, 7.2);
+                  n.vz = uz * 15.5;
+                }
+                if (post.pulse < 0.45) {
+                  post.pulse = 1.0;
+                  this.score += 2;
+                  if (this.timeAttack.active) this.timeAttack.score += 2;
+                  this.spawnParticles(post.x + ux * post.radius, 1.1, post.z + uz * post.radius, post.color, 14, 1.2);
+                  b.exciteJiggle(7.0);
+                  if (this.onBumperHit) this.onBumperHit(this.score, post, b);
+                }
+              }
+            }
+            for (const pad of this.bumpers.pads) {
+              if (b.cy > 1.35 * b.scale) continue;
+              const d = Math.hypot(b.cx - pad.x, b.cz - pad.z);
+              if (d < pad.radius && pad.pulse < 0.3) {
+                pad.pulse = 1.0;
+                for (const n of b.nodes) {
+                  n.vx = pad.vx;
+                  n.vy = pad.vy;
+                  n.vz = pad.vz;
+                }
+                b.exciteJiggle(7.5);
+                this.spawnParticles(pad.x, 0.35, pad.z, [0.18, 1.0, 0.72], 16, 1.2);
+                if (this.onTrampoline) this.onTrampoline(b);
+              }
+            }
+          }
+        }
+
+        // 7. Room Floor, Trampoline, Walls, Ceiling Collisions & Glue Anchors
         const rest = this.bounciness;
         const bx = this.boundsX;
         const bz = this.boundsZ;
         const tramp = this.trampoline;
 
         for (const b of this.bears) {
-          const extraGoldBounce = b.flavor.isGold ? 1.12 : 1.0;
-          const bRest = Math.min(0.98, rest * extraGoldBounce);
+          // Glued bear stays stuck to wall/ceiling anchor
+          if (b.glued && !b.isHeld && !b.isStolen) {
+            const gx = b.glued.x;
+            const gy = b.glued.y;
+            const gz = b.glued.z;
+            const dx = gx - b.cx;
+            const dy = gy - b.cy;
+            const dz = gz - b.cz;
+            for (const n of b.nodes) {
+              n.vx += (dx * 55 - n.vx * 8) * subDt;
+              n.vy += (dy * 55 - n.vy * 8 - gravity) * subDt;
+              n.vz += (dz * 55 - n.vz * 8) * subDt;
+            }
+          }
+
+          const extraBounce = (b.flavor.isGold ? 1.12 : 1.0) * (b.flavor.isSpicy ? 1.22 : 1.0) + (b.heat > 0.15 ? 0.16 * b.heat : 0);
+          const bRest = Math.min(0.99, rest * extraBounce);
           const friction = b.frozen > 0.5 ? 0.997 : Math.pow(0.86, 1 / substeps);
 
           let hitTrampoline = false;
+          let bearHardImpact = 0;
 
           for (const n of b.nodes) {
             const pad = n.r * 0.88;
@@ -2232,6 +3015,7 @@
               if (n.vy < 0) {
                 const impSpd = -n.vy;
                 if (impSpd > maxImpactSpeed) maxImpactSpeed = impSpd;
+                if (impSpd > bearHardImpact) bearHardImpact = impSpd;
                 if (impSpd > 13.5 && b.frozen > 0.5) {
                   this.shatterBearIce(b);
                 }
@@ -2249,11 +3033,12 @@
               if (n.vy > 0) n.vy = -n.vy * bRest;
             }
 
-            if (!b.isStolen) {
+            if (!b.isStolen && !b.flavor.isGhost) {
               if (n.x < -bx + pad) {
                 n.x = -bx + pad;
                 if (n.vx < 0) {
                   if (-n.vx > maxImpactSpeed) maxImpactSpeed = -n.vx;
+                  if (-n.vx > bearHardImpact) bearHardImpact = -n.vx;
                   if (-n.vx > 13.5 && b.frozen > 0.5) this.shatterBearIce(b);
                   n.vx = -n.vx * bRest;
                 }
@@ -2261,27 +3046,121 @@
                 n.x = bx - pad;
                 if (n.vx > 0) {
                   if (n.vx > maxImpactSpeed) maxImpactSpeed = n.vx;
+                  if (n.vx > bearHardImpact) bearHardImpact = n.vx;
                   if (n.vx > 13.5 && b.frozen > 0.5) this.shatterBearIce(b);
                   n.vx = -n.vx * bRest;
                 }
               }
             }
 
-            if (n.z < -bz + pad) {
-              n.z = -bz + pad;
-              if (n.vz < 0) {
-                if (-n.vz > maxImpactSpeed) maxImpactSpeed = -n.vz;
-                if (-n.vz > 13.5 && b.frozen > 0.5) this.shatterBearIce(b);
-                n.vz = -n.vz * bRest;
-              }
-            } else if (n.z > bz - pad) {
-              n.z = bz - pad;
-              if (n.vz > 0) {
-                if (n.vz > maxImpactSpeed) maxImpactSpeed = n.vz;
-                if (n.vz > 13.5 && b.frozen > 0.5) this.shatterBearIce(b);
-                n.vz = -n.vz * bRest;
+            if (!b.flavor.isGhost) {
+              if (n.z < -bz + pad) {
+                n.z = -bz + pad;
+                if (n.vz < 0) {
+                  if (-n.vz > maxImpactSpeed) maxImpactSpeed = -n.vz;
+                  if (-n.vz > bearHardImpact) bearHardImpact = -n.vz;
+                  if (-n.vz > 13.5 && b.frozen > 0.5) this.shatterBearIce(b);
+                  n.vz = -n.vz * bRest;
+                }
+              } else if (n.z > bz - pad) {
+                n.z = bz - pad;
+                if (n.vz > 0) {
+                  if (n.vz > maxImpactSpeed) maxImpactSpeed = n.vz;
+                  if (n.vz > bearHardImpact) bearHardImpact = n.vz;
+                  if (n.vz > 13.5 && b.frozen > 0.5) this.shatterBearIce(b);
+                  n.vz = -n.vz * bRest;
+                }
               }
             }
+          }
+
+          // Ghost Bear phases through arena walls and wraps cleanly to the opposite side!
+          if (b.flavor.isGhost && !b.isStolen && !b.isHeld) {
+            let wrapX = 0;
+            let wrapZ = 0;
+            if (b.cx < -bx - 0.8) wrapX = bx * 2;
+            else if (b.cx > bx + 0.8) wrapX = -bx * 2;
+            if (b.cz < -bz - 0.8) wrapZ = bz * 2;
+            else if (b.cz > bz + 0.8) wrapZ = -bz * 2;
+            if (wrapX !== 0 || wrapZ !== 0) {
+              this.spawnParticles(b.cx, b.cy, b.cz, [0.72, 0.94, 1.0], 10, 0.8);
+              for (const n of b.nodes) {
+                n.x += wrapX;
+                n.z += wrapZ;
+              }
+            }
+          }
+
+          // Electric Lemon zaps nearby bears on hard impacts!
+          if (b.flavor.isElectric && bearHardImpact > 7.5 && b.electricCooldown <= 0) {
+            b.electricCooldown = 0.65;
+            this.shockwaves.push({ x: b.cx, y: Math.max(0.25, b.cy), z: b.cz, r: 0.4, maxR: 5.5, alpha: 0.9 });
+            this.spawnParticles(b.cx, b.cy + 0.4, b.cz, [0.55, 1.0, 1.0], 18, 1.3);
+            for (const other of this.bears) {
+              if (other === b || other.isStolen) continue;
+              const dx = other.cx - b.cx;
+              const dz = other.cz - b.cz;
+              const d = Math.hypot(dx, dz);
+              if (d < 5.5) {
+                const ux = d > 0.05 ? dx / d : 1;
+                const uz = d > 0.05 ? dz / d : 0;
+                other.applyImpulse(ux * 7.5, 6.2, uz * 7.5, 4, 4, 4);
+                other.exciteJiggle(8.0);
+              }
+            }
+            if (this.onElectricZap) this.onElectricZap(b);
+          }
+
+          // Squash & Stretch Impact Deformation + Glossy Floor Jelly Splash Puddles
+          if (!b.yamPinned && bearHardImpact > 7.2 && b.jellyRipple < 0.35) {
+            b.jellyRipple = Math.min(1.0, bearHardImpact / 14.0);
+            if (b.cy < 2.2 * b.scale && this.puddles.length < 24) {
+              this.puddles.push({
+                x: b.cx,
+                z: b.cz,
+                r: 0.35 * b.scale,
+                maxR: (0.95 + Math.min(0.8, bearHardImpact * 0.05)) * b.scale,
+                rgb: b.flavor.rgb,
+                alpha: 0.62
+              });
+            }
+            if (this.onJellySplat) this.onJellySplat(Math.min(1, bearHardImpact / 18));
+          }
+
+          // Cheek-Bounce Physics & Over-Yam Rocket Boost (only when not pinned by Yams Ray!)
+          if (!b.yamPinned && !b.isHeld && (b.yamBoost || 0) >= 1.2 && bearHardImpact > 3.6 && b.yamBounceCooldown <= 0) {
+            b.yamBounceCooldown = 0.55;
+            const bounceVy = Math.max(12.8, bearHardImpact * (1.28 + b.yamBoost * 0.14));
+            const fwdX = b.rotMat[6];
+            const fwdZ = b.rotMat[8];
+            const rocketBoost = b.yamCharged ? 14.5 : 0;
+            if (b.yamCharged) {
+              b.yamCharged = false;
+              this.spawnParticles(b.cx, b.cy, b.cz, [1.0, 0.72, 0.14], 24, 1.5);
+            }
+            for (const n of b.nodes) {
+              n.vy = Math.max(n.vy, bounceVy);
+              if (rocketBoost > 0) {
+                n.vx += fwdX * rocketBoost;
+                n.vz += fwdZ * rocketBoost;
+              }
+            }
+            b.jellyRipple = 1.0;
+            b.exciteJiggle(8.5);
+            this.shockwaves.push({ x: b.cx, y: 0.22, z: b.cz, r: 0.45, maxR: 4.5 + b.yamBoost * 0.6, alpha: 0.85 });
+            for (const other of this.bears) {
+              if (other === b || other.isStolen || other.yamPinned) continue;
+              const dx = other.cx - b.cx;
+              const dz = other.cz - b.cz;
+              const d = Math.hypot(dx, dz);
+              if (d < 4.5) {
+                const ux = d > 0.05 ? dx / d : 1;
+                const uz = d > 0.05 ? dz / d : 0;
+                other.applyImpulse(ux * 5.2, 5.2, uz * 5.2, 3, 3, 3);
+                other.exciteJiggle(6.0);
+              }
+            }
+            if (this.onYamBoing) this.onYamBoing(b);
           }
 
           if (hitTrampoline) {
@@ -2297,6 +3176,51 @@
 
       if (maxImpactSpeed > 4.2 && this.onSquish) {
         this.onSquish(Math.min(1, (maxImpactSpeed - 3.5) / 18));
+      }
+
+      // 7b. 3D Portal Gun Teleportation
+      if (this.portals.a && this.portals.b) {
+        const pa = this.portals.a;
+        const pb = this.portals.b;
+        for (const b of this.bears) {
+          if (b.isHeld || b.isStolen || b.portalCooldown > 0) continue;
+          const da = Math.hypot(b.cx - pa.x, b.cy - pa.y, b.cz - pa.z);
+          const db = Math.hypot(b.cx - pb.x, b.cy - pb.y, b.cz - pb.z);
+          let src = null;
+          let dst = null;
+          if (da < pa.radius + b.boundRadius * 0.45) {
+            src = pa;
+            dst = pb;
+          } else if (db < pb.radius + b.boundRadius * 0.45) {
+            src = pb;
+            dst = pa;
+          }
+          if (src && dst) {
+            b.portalCooldown = 0.72;
+            b.glued = null;
+            const ox = dst.x - b.cx;
+            const oy = dst.y - b.cy;
+            const oz = dst.z - b.cz;
+            const spd = Math.hypot(b.vx, b.vy, b.vz);
+            const boost = spd < 8.5 ? (9.5 / Math.max(0.5, spd)) : 1.16;
+            for (const n of b.nodes) {
+              n.x += ox;
+              n.y += oy;
+              n.z += oz;
+              n.vx *= boost;
+              n.vy = Math.max(4.5, n.vy * boost);
+              n.vz *= boost;
+            }
+            b.updateShapeFrame();
+            b.syncGpuNodes();
+            b.exciteJiggle(7.0);
+            src.pulse = 1.0;
+            dst.pulse = 1.0;
+            this.spawnParticles(src.x, src.y, src.z, [0.12, 0.86, 1.0], 14, 1.1);
+            this.spawnParticles(dst.x, dst.y, dst.z, [1.0, 0.48, 0.08], 18, 1.25);
+            if (this.onPortalJump) this.onPortalJump(b);
+          }
+        }
       }
 
       // 8. Check 3D Candy Hoop Plane Crossings & Combos
@@ -2315,6 +3239,10 @@
             this.comboTimer = 4.5;
             const pts = (b.flavor.points || 1) * this.combo;
             this.score += pts;
+            if (this.timeAttack.active) {
+              this.timeAttack.score += pts;
+              this.timeAttack.maxCombo = Math.max(this.timeAttack.maxCombo, this.combo);
+            }
             h.pulse = 1.0;
             this.spawnParticles(h.x, h.y, h.z, [1.0, 0.84, 0.12], 24, 1.35);
             this.spawnParticles(h.x, h.y, h.z, b.flavor.particle, 14, 1.15);
@@ -2344,6 +3272,13 @@
         w.r += (w.maxR - w.r) * Math.min(1, dt * 7.5);
         w.alpha -= rawDt * 1.9;
         if (w.alpha <= 0) this.shockwaves.splice(i, 1);
+      }
+
+      for (let i = this.puddles.length - 1; i >= 0; i--) {
+        const pd = this.puddles[i];
+        pd.r += (pd.maxR - pd.r) * Math.min(1, rawDt * 9.0);
+        pd.alpha -= rawDt * 0.18;
+        if (pd.alpha <= 0) this.puddles.splice(i, 1);
       }
     }
   }
