@@ -559,7 +559,7 @@
   // =========================================================================
   const origDrawBearHat = GummyRenderer3D.prototype.drawBearHat;
   GummyRenderer3D.prototype.drawBearHat = function (bear, hatId, timeSec) {
-    // Also draw a giant crown on King Gummy!
+    const { mat4FromTRS } = window.GummyApp;
     const effHat = bear.isKingGummy ? 'crown' : hatId;
     if (!effHat || effHat === 'none') return;
     if (['halo', 'crown', 'tophat', 'party', 'wizard'].includes(effHat)) {
@@ -573,49 +573,47 @@
     const hy = head.y + bear.rotMat[4] * (0.48 * s);
     const hz = head.z + bear.rotMat[5] * (0.48 * s);
     const M = this.modelMat;
-    const trs = (tx, ty, tz, rx, ry, rz, sx, sy, sz) => {
-      M[0] = sx; M[1] = 0; M[2] = 0; M[3] = 0;
-      M[4] = 0; M[5] = sy; M[6] = 0; M[7] = 0;
-      M[8] = 0; M[9] = 0; M[10] = sz; M[11] = 0;
-      M[12] = tx; M[13] = ty; M[14] = tz; M[15] = 1;
-    };
+
     if (effHat === 'cowboy') {
-      trs(hx, hy + 0.04 * s, hz, 0, 0, 0, 0.56 * s, 0.06 * s, 0.44 * s);
+      mat4FromTRS(M, hx, hy + 0.04 * s, hz, 0, 0, 0, 0.58 * s, 0.06 * s, 0.44 * s);
       this.drawMesh(this.cylVAO, M, 0, 0.58, 0.34, 0.14, 1.0);
-      trs(hx, hy + 0.22 * s, hz, 0, 0, 0, 0.28 * s, 0.30 * s, 0.28 * s);
+      mat4FromTRS(M, hx, hy + 0.22 * s, hz, 0, 0, 0, 0.28 * s, 0.30 * s, 0.28 * s);
       this.drawMesh(this.cylVAO, M, 0, 0.48, 0.26, 0.10, 1.0);
     } else if (effHat === 'chef') {
-      trs(hx, hy + 0.12 * s, hz, 0, 0, 0, 0.30 * s, 0.24 * s, 0.30 * s);
+      mat4FromTRS(M, hx, hy + 0.12 * s, hz, 0, 0, 0, 0.30 * s, 0.24 * s, 0.30 * s);
       this.drawMesh(this.cylVAO, M, 0, 0.98, 0.98, 1.0, 1.0);
-      trs(hx, hy + 0.34 * s, hz, 0, 0, 0, 0.36 * s, 0.26 * s, 0.36 * s);
+      mat4FromTRS(M, hx, hy + 0.34 * s, hz, 0, 0, 0, 0.38 * s, 0.28 * s, 0.38 * s);
       this.drawMesh(this.sphereVAO, M, 0, 1.0, 1.0, 1.0, 1.0);
     } else if (effHat === 'propeller') {
-      trs(hx, hy + 0.06 * s, hz, 0, 0, 0, 0.34 * s, 0.22 * s, 0.34 * s);
+      mat4FromTRS(M, hx, hy + 0.06 * s, hz, 0, 0, 0, 0.34 * s, 0.22 * s, 0.34 * s);
       this.drawMesh(this.sphereVAO, M, 2, 0.15, 0.58, 1.0, 1.0, [1.0, 0.85, 0.1]);
-      trs(hx, hy + 0.28 * s, hz, 0, timeSec * 12, 0, 0.46 * s, 0.04 * s, 0.08 * s);
+      mat4FromTRS(M, hx, hy + 0.29 * s, hz, 0, timeSec * 14, 0, 0.50 * s, 0.04 * s, 0.09 * s);
       this.drawMesh(this.cylVAO, M, 0, 1.0, 0.2, 0.25, 1.0);
+      mat4FromTRS(M, hx, hy + 0.29 * s, hz, 0, timeSec * 14 + Math.PI * 0.5, 0, 0.50 * s, 0.04 * s, 0.09 * s);
+      this.drawMesh(this.cylVAO, M, 0, 1.0, 0.85, 0.12, 1.0);
     } else if (effHat === 'sombrero') {
-      trs(hx, hy + 0.04 * s, hz, 0, 0, 0, 0.68 * s, 0.07 * s, 0.68 * s);
+      mat4FromTRS(M, hx, hy + 0.04 * s, hz, 0, 0, 0, 0.72 * s, 0.07 * s, 0.72 * s);
       this.drawMesh(this.cylVAO, M, 2, 1.0, 0.72, 0.12, 1.0, [0.95, 0.18, 0.35]);
-      trs(hx, hy + 0.22 * s, hz, 0, 0, 0, 0.26 * s, 0.32 * s, 0.26 * s);
+      mat4FromTRS(M, hx, hy + 0.22 * s, hz, 0, 0, 0, 0.26 * s, 0.34 * s, 0.26 * s);
       this.drawMesh(this.cylVAO, M, 0, 0.98, 0.62, 0.10, 1.0);
     } else if (effHat === 'viking') {
-      trs(hx, hy + 0.06 * s, hz, 0, 0, 0, 0.34 * s, 0.26 * s, 0.34 * s);
+      mat4FromTRS(M, hx, hy + 0.06 * s, hz, 0, 0, 0, 0.34 * s, 0.26 * s, 0.34 * s);
       this.drawMesh(this.sphereVAO, M, 0, 0.55, 0.60, 0.68, 1.0);
-      trs(hx - 0.36 * s, hy + 0.22 * s, hz, 0, 0, 0, 0.10 * s, 0.26 * s, 0.10 * s);
+      mat4FromTRS(M, hx - 0.36 * s, hy + 0.22 * s, hz, 0, 0, 0.42, 0.09 * s, 0.30 * s, 0.09 * s);
       this.drawMesh(this.cylVAO, M, 0, 0.96, 0.92, 0.82, 1.0);
-      trs(hx + 0.36 * s, hy + 0.22 * s, hz, 0, 0, 0, 0.10 * s, 0.26 * s, 0.10 * s);
+      mat4FromTRS(M, hx + 0.36 * s, hy + 0.22 * s, hz, 0, 0, -0.42, 0.09 * s, 0.30 * s, 0.09 * s);
       this.drawMesh(this.cylVAO, M, 0, 0.96, 0.92, 0.82, 1.0);
     } else if (effHat === 'horns') {
-      trs(hx - 0.22 * s, hy + 0.18 * s, hz, 0, 0, 0, 0.09 * s, 0.30 * s, 0.09 * s);
+      mat4FromTRS(M, hx - 0.22 * s, hy + 0.20 * s, hz, 0, 0, 0.32, 0.08 * s, 0.32 * s, 0.08 * s);
       this.drawMesh(this.cylVAO, M, 0, 0.92, 0.08, 0.16, 1.0);
-      trs(hx + 0.22 * s, hy + 0.18 * s, hz, 0, 0, 0, 0.09 * s, 0.30 * s, 0.09 * s);
+      mat4FromTRS(M, hx + 0.22 * s, hy + 0.20 * s, hz, 0, 0, -0.32, 0.08 * s, 0.32 * s, 0.08 * s);
       this.drawMesh(this.cylVAO, M, 0, 0.92, 0.08, 0.16, 1.0);
     }
   };
 
   const origRender = GummyRenderer3D.prototype.render;
   GummyRenderer3D.prototype.render = function (timeSec) {
+    const { mat4FromTRS, mat4AlignBeam } = window.GummyApp;
     const w = this.world;
     ensureMegaState(w);
 
@@ -645,85 +643,107 @@
     const gl = this.gl;
     gl.useProgram(this.stageProg);
     const M = this.modelMat;
-    const setT = (tx, ty, tz, sx, sy, sz) => {
-      M[0] = sx; M[1] = 0; M[2] = 0; M[3] = 0;
-      M[4] = 0; M[5] = sy; M[6] = 0; M[7] = 0;
-      M[8] = 0; M[9] = 0; M[10] = sz; M[11] = 0;
-      M[12] = tx; M[13] = ty; M[14] = tz; M[15] = 1;
-    };
 
-    // Black Holes
+    // 3D Bungee Cords connecting linked bears
+    for (const bg of w.bungees) {
+      mat4AlignBeam(M, bg.a.cx, bg.a.cy, bg.a.cz, bg.b.cx, bg.b.cy, bg.b.cz, 0.09);
+      this.drawMesh(this.cylVAO, M, 2, 0.16, 0.96, 0.82, 0.95, [1.0, 0.35, 0.85]);
+    }
+
+    // Black Holes (Event Horizon + 2 spinning accretion rings)
     for (const bh of w.blackHoles) {
-      const p = 0.85 + Math.sin(timeSec * 14) * 0.14;
-      setT(bh.x, bh.y, bh.z, p, p, p);
-      this.drawMesh(this.sphereVAO, M, 0, 0.05, 0.02, 0.10, 0.98);
-      setT(bh.x, bh.y, bh.z, p * 2.1, p * 0.2, p * 2.1);
-      this.drawMesh(this.thinRingVAO, M, 3, 0.68, 0.18, 1.0, 0.9);
+      const p = 0.88 + Math.sin(timeSec * 14) * 0.14;
+      mat4FromTRS(M, bh.x, bh.y, bh.z, 0, 0, 0, p, p, p);
+      this.drawMesh(this.sphereVAO, M, 0, 0.04, 0.01, 0.09, 0.98);
+      mat4FromTRS(M, bh.x, bh.y, bh.z, Math.PI * 0.5 + 0.25, timeSec * 4.5, 0, p * 2.2, p * 2.2, p * 2.2);
+      this.drawMesh(this.thinRingVAO, M, 3, 0.68, 0.18, 1.0, 0.92);
+      mat4FromTRS(M, bh.x, bh.y, bh.z, Math.PI * 0.5 - 0.35, -timeSec * 5.2, 0, p * 1.55, p * 1.55, p * 1.55);
+      this.drawMesh(this.thinRingVAO, M, 3, 0.18, 0.88, 1.0, 0.85);
     }
 
     // Ticking Candy Bombs
     for (const bm of w.bombs) {
-      const flash = Math.sin(timeSec * 28) > 0 ? 1.0 : 0.35;
-      setT(bm.x, bm.y, bm.z, 0.55, 0.55, 0.55);
-      this.drawMesh(this.sphereVAO, M, 0, flash, 0.15, 0.18, 1.0);
+      const flash = Math.sin(timeSec * 28) > 0 ? 1.0 : 0.25;
+      mat4FromTRS(M, bm.x, bm.y, bm.z, 0, 0, 0, 0.58, 0.58, 0.58);
+      this.drawMesh(this.sphereVAO, M, 0, flash, 0.14, 0.18, 1.0);
+      mat4FromTRS(M, bm.x, bm.y + 0.62, bm.z, 0, 0, 0, 0.14, 0.24, 0.14);
+      this.drawMesh(this.cylVAO, M, 3, 1.0, 0.86, 0.18, 1.0);
     }
 
-    // Soap Bubbles around bubbled bears
+    // Soap Bubbles & Piñata Halo
     for (const b of w.bears) {
       if (b.inBubble) {
-        const r = 1.45 * b.scale;
-        setT(b.cx, b.cy, b.cz, r, r, r);
+        const r = 1.48 * b.scale;
+        mat4FromTRS(M, b.cx, b.cy, b.cz, 0, timeSec * 1.5, 0, r, r, r);
         this.drawMesh(this.sphereVAO, M, 3, 0.72, 0.94, 1.0, 0.34);
       }
       if (b.isPinata) {
-        const r = 1.7 * b.scale;
-        setT(b.cx, b.cy, b.cz, r, 0.12, r);
-        this.drawMesh(this.thinRingVAO, M, 3, 1.0, 0.82, 0.14, 0.88);
+        const r = 1.65 * b.scale;
+        mat4FromTRS(M, b.cx, b.cy, b.cz, Math.PI * 0.5, timeSec * 3.0, 0, r, r, r);
+        this.drawMesh(this.thinRingVAO, M, 3, 1.0, 0.82, 0.14, 0.92);
       }
     }
 
-    // 3D Bowling Pins
+    // 3D Bowling Pins (properly tilted when knocked down!)
     if (w.bowling.enabled) {
       for (const pin of w.bowling.pins) {
-        const y = pin.fallen ? 0.28 : 0.95;
-        const sx = pin.fallen ? 0.85 : 0.28;
-        const sy = pin.fallen ? 0.28 : 1.75;
-        setT(pin.x, y, pin.z, sx, sy, 0.28);
-        this.drawMesh(this.cylVAO, M, 2, 1.0, 0.98, 0.98, 1.0, [0.95, 0.14, 0.22]);
+        const y = pin.fallen ? 0.28 : 0.92;
+        mat4FromTRS(M, pin.x, y, pin.z, pin.tilt, 0, 0, 0.26, 1.65, 0.26);
+        this.drawMesh(this.cylVAO, M, 2, 1.0, 0.98, 0.98, 1.0, [0.96, 0.14, 0.22]);
+        if (!pin.fallen) {
+          mat4FromTRS(M, pin.x, 1.82, pin.z, 0, 0, 0, 0.22, 0.22, 0.22);
+          this.drawMesh(this.sphereVAO, M, 0, 1.0, 0.98, 0.98, 1.0);
+        }
       }
     }
 
-    // Giant Pendulum Wrecking Ball
+    // Giant Pendulum Wrecking Ball + Ceiling Chain
     if (w.pendulum.enabled) {
       const p = w.pendulum;
       const bx = Math.sin(p.angle) * p.length;
       const by = p.pivotY - Math.cos(p.angle) * p.length;
-      setT(bx, by, 0, p.radius, p.radius, p.radius);
+      mat4AlignBeam(M, 0, p.pivotY, 0, bx, by, 0, 0.12);
+      this.drawMesh(this.cylVAO, M, 0, 0.65, 0.68, 0.78, 1.0);
+      mat4FromTRS(M, bx, by, 0, 0, 0, 0, p.radius, p.radius, p.radius);
       this.drawMesh(this.sphereVAO, M, 0, 0.98, 0.76, 0.12, 1.0);
     }
 
-    // Moving Laser Hurdle
+    // Moving Horizontal Laser Hurdle + Side Emitters
     if (w.laserBar.enabled) {
-      setT(0, w.laserBar.y, w.laserBar.z, w.boundsX * 1.9, 0.16, 0.16);
-      this.drawMesh(this.cylVAO, M, 3, 1.0, 0.12, 0.32, 0.92);
+      const lb = w.laserBar;
+      mat4AlignBeam(M, -w.boundsX + 0.2, lb.y, lb.z, w.boundsX - 0.2, lb.y, lb.z, 0.14);
+      this.drawMesh(this.cylVAO, M, 3, 1.0, 0.10, 0.28, 0.95);
+      mat4FromTRS(M, -w.boundsX + 0.2, lb.y * 0.5, lb.z, 0, 0, 0, 0.35, lb.y + 0.3, 0.35);
+      this.drawMesh(this.cylVAO, M, 0, 0.22, 0.22, 0.30, 1.0);
+      mat4FromTRS(M, w.boundsX - 0.2, lb.y * 0.5, lb.z, 0, 0, 0, 0.35, lb.y + 0.3, 0.35);
+      this.drawMesh(this.cylVAO, M, 0, 0.22, 0.22, 0.30, 1.0);
     }
 
-    // Candy Fountain Base
+    // Candy Fountain Base + Rising Water Jet
     if (w.fountain.enabled) {
-      setT(0, 0.18, 0, 2.2, 0.32, 2.2);
+      mat4FromTRS(M, 0, 0.18, 0, 0, 0, 0, 2.25, 0.32, 2.25);
       this.drawMesh(this.cylVAO, M, 0, 0.18, 0.86, 1.0, 0.95);
+      if (w.fountain.erupting > 0) {
+        const h = 8.5 * Math.min(1, w.fountain.erupting * 1.4);
+        mat4AlignBeam(M, 0, 0.2, 0, 0, h, 0, 0.85 + Math.sin(timeSec * 22) * 0.12);
+        this.drawMesh(this.cylVAO, M, 4, 0.28, 0.94, 1.0, 0.52);
+      }
     }
 
-    // Speed Boost Strip
+    // Speed Boost Strips (3 glowing pads)
     if (w.boostStrips) {
-      setT(0, 0.05, 3.8, 16.0, 0.06, 2.2);
-      this.drawMesh(this.cylVAO, M, 3, 0.16, 1.0, 0.52, 0.65);
+      for (const sx of [-5.2, 0, 5.2]) {
+        mat4FromTRS(M, sx, 0.05, 3.8, 0, 0, 0, 2.1, 0.06, 1.35);
+        this.drawMesh(this.cylVAO, M, 3, 0.16, 1.0, 0.52, 0.72);
+      }
     }
 
     // Lava Floor Glow
     if (w.lavaFloor) {
-      setT(0, 0.03, 0, w.boundsX * 1.8, 0.04, w.boundsZ * 1.8);
-      this.drawMesh(this.cylVAO, M, 3, 1.0, 0.28, 0.04, 0.32);
+      mat4FromTRS(M, 0, 0.03, 0, 0, 0, 0, w.boundsX * 1.15, 0.04, w.boundsZ * 1.15);
+      this.drawMesh(this.cylVAO, M, 3, 1.0, 0.28, 0.04, 0.36);
     }
   };
+
+  window.GummyApp.ensureMegaState = ensureMegaState;
 })();

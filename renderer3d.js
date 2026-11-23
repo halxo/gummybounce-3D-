@@ -1749,7 +1749,11 @@
       this.updateCameraMatrices();
 
       gl.viewport(0, 0, this.canvas.width, this.canvas.height);
-      if (this.neonMode) {
+      if (w.arenaTheme === 'sunset') {
+        gl.clearColor(0.98, 0.72, 0.56, 1.0);
+      } else if (w.arenaTheme === 'space') {
+        gl.clearColor(0.02, 0.015, 0.07, 1.0);
+      } else if (this.neonMode) {
         gl.clearColor(0.05, 0.025, 0.10, 1.0);
       } else {
         gl.clearColor(0.985, 0.945, 0.975, 1.0);
@@ -2145,4 +2149,6 @@
 
   window.GummyApp = window.GummyApp || {};
   window.GummyApp.GummyRenderer3D = GummyRenderer3D;
+  window.GummyApp.mat4FromTRS = mat4FromTRS;
+  window.GummyApp.mat4AlignBeam = mat4AlignBeam;
 })();

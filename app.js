@@ -452,6 +452,17 @@
       }
       if (achProg) achProg.textContent = `${count}/${ACHIEVEMENTS.length}`;
     }
+
+    const missionList = document.getElementById('mission-list');
+    if (missionList && progression.missions) {
+      missionList.innerHTML = '';
+      for (const m of progression.missions) {
+        const el = document.createElement('div');
+        el.className = `mission-item${m.done ? ' done' : ''}`;
+        el.innerHTML = `<span>${m.done ? '✅' : '🎯'} ${m.label}</span><span>${m.progress}/${m.goal} (+${m.reward})</span>`;
+        missionList.append(el);
+      }
+    }
   }
 
   if (progression) {
@@ -459,6 +470,12 @@
       audio.playAchievement();
       showCornerToast(`🏆 Achievement Unlocked: ${ach.title}!`, 'gold');
       renderTrophiesUI();
+    };
+    progression.onMissionComplete = (m) => {
+      world.score += m.reward;
+      hoopScoreEl.textContent = String(world.score);
+      audio.playAchievement();
+      showCornerToast(`🎯 Mission Complete: ${m.label}! (+${m.reward} pts)`, 'gold');
     };
     progression.onChange = () => renderTrophiesUI();
     renderTrophiesUI();
@@ -608,8 +625,20 @@
     });
   };
 
-  wireMegaToggle('btn-grav-flip', () => world.gravFlipped, (v) => { world.gravFlipped = v; }, '🙃 Gravity Flip');
-  wireBtn('btn-disco-pulse', () => { world.triggerDiscoPulse(); audio.playJiggleQuake(); });
+  const closeMegaPopover = () => {
+    const mp = document.getElementById('mega-popover');
+    if (mp) { try { mp.hidePopover(); } catch { /* ignore */ } }
+  };
+
+  wireMegaToggle('btn-grav-flip', () => world.gravFlipped, (v) => {
+    world.gravFlipped = v;
+    if (v) {
+      for (const b of world.bears) {
+        if (!b.yamPinned) for (const n of b.nodes) n.vy += 6.5;
+      }
+    }
+  }, '🙃 Gravity Flip');
+  wireBtn('btn-disco-pulse', () => { world.triggerDiscoPulse(); audio.playJiggleQuake(); closeMegaPopover(); });
   wireMegaToggle('btn-time-freeze', () => world.timeFreeze, (v) => { world.timeFreeze = v; }, '⏸️ Freeze Time');
 
   document.querySelectorAll('.flavor-spawn').forEach((btn) => {
@@ -638,6 +667,8 @@
   wireMegaToggle('tog-moongrav', () => world.moonGrav, (v) => {
     world.moonGrav = v;
     world.gravityScale = v ? 0.25 : 1.0;
+    const sG = document.getElementById('slider-gravity');
+    if (sG) { sG.value = v ? '25' : '100'; sG.dispatchEvent(new Event('input')); }
   }, '🌕 Moon Gravity');
   wireMegaToggle('tog-autoturret', () => world.autoTurret.enabled, (v) => { world.autoTurret.enabled = v; }, '🤖 Auto-Turret');
   wireMegaToggle('tog-booststrips', () => world.boostStrips, (v) => { world.boostStrips = v; }, '⚡ Speed Strips');
@@ -656,19 +687,21 @@
     world.spawnKingGummy();
     audio.playWaveStart();
     if (progression) progression.unlock('king_gummy');
-    showCornerToast('🐻👑 KING GUMMY MEGA-BOSS ARRIVED! Bonk or blast him!', 'gold');
+    showCornerToast('🐻👑 KING GUMMY MEGA-BOSS ARRIVED! Bonk or click him!', 'gold');
+    closeMegaPopover();
   });
   wireBtn('btn-pinata-bear', () => {
     world.spawnPinataBear();
     audio.playFuseChime();
-    showCornerToast('🪅 GIANT PIÑATA BEAR! Bonk it 5 times to burst!', 'gold');
+    showCornerToast('🪅 GIANT PIÑATA BEAR! Click or Bonk it 5 times to burst!', 'gold');
+    closeMegaPopover();
   });
   wireMegaToggle('tog-lavafloor', () => world.lavaFloor, (v) => {
     world.lavaFloor = v;
     if (v && progression) progression.unlock('lava_floor');
   }, '🌋 Floor is Lava');
-  wireBtn('btn-meteors', () => { world.triggerMeteorShower(); audio.playBombBoom(); showCornerToast('☄️ METEOR SHOWER!', 'red'); });
-  wireBtn('btn-confetti', () => { world.fireConfettiCannon(); audio.playPinStrike(); showCornerToast('🎉 CONFETTI CANNON!', 'gold'); });
+  wireBtn('btn-meteors', () => { world.triggerMeteorShower(); audio.playBombBoom(); showCornerToast('☄️ METEOR SHOWER!', 'red'); closeMegaPopover(); });
+  wireBtn('btn-confetti', () => { world.fireConfettiCannon(); audio.playPinStrike(); showCornerToast('🎉 CONFETTI CANNON!', 'gold'); closeMegaPopover(); });
 
   let djEnabled = false;
   wireMegaToggle('tog-djmusic', () => djEnabled, (v) => {
@@ -687,7 +720,7 @@
     }
   }, '🎵 DJ Rave 128BPM');
 
-  wireBtn('btn-chaos', () => world.triggerRandomChaos());
+  wireBtn('btn-chaos', () => { world.triggerRandomChaos(); closeMegaPopover(); });
   wireMegaToggle('tog-autoorbit', () => world.autoOrbit, (v) => { world.autoOrbit = v; }, '🎥 Auto-Orbit Cam');
   wireMegaToggle('tog-followcam', () => world.followCam, (v) => { world.followCam = v; }, '🎯 Follow Bear Cam');
   wireBtn('btn-lowcam', () => {
@@ -695,6 +728,7 @@
     renderer.cam.distance = 12.5;
     renderer.updateCameraMatrices();
     audio.playBoop(1.1);
+    closeMegaPopover();
   });
 
   const fpsPill = document.getElementById('fps-pill');
@@ -733,6 +767,7 @@
     });
     canvas.classList.toggle('cursor-aim', mode !== 'grab' || awaitingPurpleTarget);
     modeHint.innerHTML = MODE_HINTS[mode] || MODE_HINTS.grab;
+    closeMegaPopover();
   }
 
   document.querySelectorAll('.tool-btn').forEach((btn) => {
@@ -1301,6 +1336,8 @@
 
     if (effectiveMode === 'grab') {
       if (hit) {
+        if (hit.bear.isPinata) world.hitPinataBear(hit.bear);
+        if (hit.bear.isKingGummy) world.hitKingGummy(hit.bear);
         interactionKind = 'grab';
         hit.bear.isHeld = true;
         const n = hit.bear.nodes[hit.nodeIndex];
