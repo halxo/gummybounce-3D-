@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gummy Bounce Arena 2 (4D) — Hypercube Soft-Body Physics</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="../audio.js"></script>
+  <script defer src="../mesh3d.js"></script>
+  <script defer src="arena2-4d.js"></script>
+</head>
+<body>
+  <header class="top-bar">
+    <div class="brand">
+      <a href="../index.html" class="back-link" title="Back to Gummy Bounce 3D">← 3D Arena</a>
+      <span class="brand-icon" aria-hidden="true">🧊</span>
+      <div class="brand-text">
+        <h1>Gummy Bounce Arena 2 <span class="badge-4d">4D</span></h1>
+        <p class="subtitle">Tesseract hypercube physics · X, Y, Z &amp; W-Dimension</p>
+      </div>
+    </div>
+
+    <div class="hud-stats">
+      <span class="stat-pill">🎯 Score: <strong id="score-4d">0</strong></span>
+      <span class="stat-pill">🌌 W-Slice: <strong id="w-slice-val">0.0</strong></span>
+      <span class="stat-pill">🧸 Bears: <strong id="bears-4d">0</strong></span>
+    </div>
+
+    <div class="toolbar" id="toolbar-4d">
+      <button type="button" class="tool-btn" data-mode="grab" aria-pressed="true" title="4D Grab & Throw (Key 1)">✋ Grab</button>
+      <button type="button" class="tool-btn" data-mode="slingshot" aria-pressed="false" title="4D Slingshot (Key 2)">🏹 Sling</button>
+      <button type="button" class="tool-btn" data-mode="wave" aria-pressed="false" title="4D Hypersphere Shockwave (Key 3)">〰️ Wave</button>
+      <button type="button" class="tool-btn" data-mode="vortex" aria-pressed="false" title="4D Hyper-Vortex (Key 4)">🌀 Vortex</button>
+      <button type="button" class="tool-btn" data-mode="blaster" aria-pressed="false" title="4D Rapid Blaster (Key 5)">🔫 Blaster</button>
+      <button type="button" class="tool-btn" data-mode="puff" aria-pressed="false" title="Puff & Pop (Key 6)">🎈 Puff</button>
+      <button type="button" class="tool-btn" data-mode="cryo" aria-pressed="false" title="4D Cryo Freeze (Key 7)">❄️ Cryo</button>
+      <button type="button" class="tool-btn" data-mode="yams" aria-pressed="false" title="Steady 4D Yams Ray (Key 8)">🍠 Yams</button>
+      <button type="button" class="tool-btn" data-mode="blackhole" aria-pressed="false" title="4D Singularity (Key 9)">🕳️ 4D Hole</button>
+      <button type="button" class="tool-btn" data-mode="wzap" aria-pressed="false" title="Pull all bears from other W-slices into your 4D slice! (Key 0)">⚡ W-Zap</button>
+
+      <span class="sep"></span>
+
+      <button type="button" id="btn-drop-4d" class="action-btn primary" title="Drop 4D Bear (N)">＋ Drop</button>
+      <button type="button" id="btn-quake-4d" class="action-btn" title="4D Yam Quake (Y)">🍠 Quake</button>
+      <button type="button" id="btn-boss-4d" class="action-btn danger" title="Toggle 4D Obtuse Titan Boss (B)">👹 4D Boss</button>
+      <button type="button" id="btn-chaos-4d" class="action-btn" title="4D Hyper-Chaos">🎲 Chaos</button>
+      <button type="button" id="btn-reset-cam-4d" class="icon-btn" title="Reset 4D Camera (R)">🎥</button>
+    </div>
+  </header>
+
+  <main class="stage-wrap">
+    <canvas id="canvas-4d"></canvas>
+
+    <!-- 4D Hyper-Dimension Control Dock -->
+    <aside class="w-dock" aria-label="4th Dimension Controls">
+      <div class="w-title">🌌 4D Controls</div>
+      <label class="w-row">
+        <span>W-Slice (<kbd>Q</kbd>/<kbd>E</kbd>): <strong id="w-slider-lbl">0.0</strong></span>
+        <input type="range" id="slider-w" min="-50" max="50" value="0">
+      </label>
+      <label class="w-row">
+        <span>XW Hyper-Rot: <strong id="xw-lbl">0°</strong></span>
+        <input type="range" id="slider-xw" min="-180" max="180" value="18">
+      </label>
+      <label class="w-row">
+        <span>ZW Hyper-Rot: <strong id="zw-lbl">0°</strong></span>
+        <input type="range" id="slider-zw" min="-180" max="180" value="-12">
+      </label>
+      <label class="w-toggle">
+        <input type="checkbox" id="chk-auto-4d" checked> Auto-Rotate 4D Tesseract
+      </label>
+    </aside>
+
+    <!-- 4D Boss HP Bar -->
+    <div id="boss-4d-hud" class="boss-4d-hud" hidden>
+      <span>👹 4D OBTUSE TITAN (W: <strong id="boss-w-val">0.0</strong>)</span>
+      <div class="hp-track"><div id="boss-4d-fill" class="hp-fill"></div></div>
+      <strong id="boss-4d-hp">120 / 120</strong>
+    </div>
+
+    <div id="toast-4d" class="toast-4d" hidden></div>
+
+    <p class="hint-4d" id="hint-4d">
+      <strong>4D Tesseract Arena:</strong> Use <kbd>Q</kbd> / <kbd>E</kbd> (or the W-Slice slider) to phase through the 4th dimension! Bears in other W-slices glow cyan/magenta until you phase into their slice. Right-drag to orbit 3D.
+    </p>
+  </main>
+</body>
+</html>
