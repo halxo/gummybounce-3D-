@@ -548,14 +548,16 @@
     });
   });
 
-  const btnYamQuake = document.getElementById('btn-yam-quake');
-  if (btnYamQuake) {
-    btnYamQuake.addEventListener('click', () => {
-      world.yamQuake();
-      audio.playYamBoing();
-      showCornerToast('🍠 YAM QUAKE! Every cheek is wobbling!', 'gold');
-    });
+  function triggerYamQuake() {
+    world.yamQuake();
+    audio.playYamBoing();
+    showCornerToast('🍠 YAM QUAKE! Every cheek is wobbling!', 'gold');
   }
+
+  const btnYamQuake = document.getElementById('btn-yam-quake');
+  if (btnYamQuake) btnYamQuake.addEventListener('click', triggerYamQuake);
+  const btnYamQuakeBar = document.getElementById('btn-yam-quake-bar');
+  if (btnYamQuakeBar) btnYamQuakeBar.addEventListener('click', triggerYamQuake);
 
   function setMode(mode) {
     currentMode = mode;
@@ -1458,6 +1460,11 @@
       case 'C':
         event.preventDefault();
         setPhotoMode(!photoMode);
+        break;
+      case 'y':
+      case 'Y':
+        event.preventDefault();
+        triggerYamQuake();
         break;
       case ' ':
       case 'j':
